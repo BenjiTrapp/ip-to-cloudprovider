@@ -7,11 +7,9 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 type IPRange struct {
@@ -19,26 +17,49 @@ type IPRange struct {
 	IPv6 []string `json:"ipv6"`
 }
 
-func main() {
-	var rootCmd = &cobra.Command{Use: "ipranges"}
-	rootCmd.PersistentFlags().BoolP("update", "u", false, "Update IP ranges")
-	rootCmd.PersistentFlags().BoolP("check", "c", false, "Check if an IP is in the range")
-	viper.BindPFlags(rootCmd.PersistentFlags())
+var updateAll bool
 
-	var providers = []struct {
-		name   string
-		url    string
-		parser func(data []byte) *IPRange
-	}{
-		{"amazon", "https://ip-ranges.amazonaws.com/ip-ranges.json", parseAmazon},
-		{"github", "https://api.github.com/meta", parseGitHub},
-		{"google", "https://www.gstatic.com/ipranges/goog.txt", parseGoogle},
-		{"microsoft", "", parseMicrosoft}, // URL is dynamic, handled in the function
-		{"openai", "https://openai.com/gptbot-ranges.txt", parseOpenAI},
+var providers = []struct {
+	name   string
+	url    string
+	parser func(data []byte) *IPRange
+}{
+	{"amazon", "https://ip-ranges.amazonaws.com/ip-ranges.json", parseAmazon},
+	{"github", "https://api.github.com/meta", parseGitHub},
+	{"google", "https://www.gstatic.com/ipranges/goog.txt", parseGoogle},
+	{"openai", "https://openai.com/gptbot-ranges.txt", parseOpenAI},
+}
+
+func main() {
+	var rootCmd = &cobra.Command{
+		Use:   "ipranges",
+		Short: "Manage IP ranges for various providers",
+		Run: func(cmd *cobra.Command, args []string) {
+			if updateAll {
+				for _, provider := range providers {
+					updateIPRanges(provider.name, provider.url)
+				}
+			} else {
+				cmd.Help()
+			}
+		},
 	}
 
+	rootCmd.PersistentFlags().BoolVarP(&updateAll, "update-all", "", false, "Update IP ranges for all providers")
+
+	var checkIPCmd = &cobra.Command{
+		Use:   "check-ip [ip]",
+		Short: "Check if an IP belongs to any provider's range",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			ip := args[0]
+			checkIP(ip)
+		},
+	}
+	rootCmd.AddCommand(checkIPCmd)
+
 	for _, provider := range providers {
-		provider := provider // capture range variable
+		provider := provider
 		providerCmd := &cobra.Command{
 			Use:   provider.name,
 			Short: fmt.Sprintf("Manage %s IP ranges", provider.name),
@@ -49,12 +70,13 @@ func main() {
 					updateIPRanges(provider.name, provider.url)
 				} else if check {
 					ip := args[0]
-					checkIPRange(provider.name, ip)
+					checkIP(ip)
 				} else {
 					cmd.Help()
 				}
 			},
 		}
+		providerCmd.Flags().BoolVarP(&updateAll, "update-all", "", false, "Update IP ranges for all providers")
 		rootCmd.AddCommand(providerCmd)
 	}
 
@@ -88,14 +110,15 @@ func updateIPRanges(providerName, url string) {
 	fmt.Printf("%s IP ranges updated successfully\n", providerName)
 }
 
-func checkIPRange(providerName, ip string) {
-	ipRanges := loadIPRanges(providerName)
-
-	if isIPInRange(ip, ipRanges.IPv4) || isIPInRange(ip, ipRanges.IPv6) {
-		fmt.Printf("%s is in the range of %s\n", ip, providerName)
-	} else {
-		fmt.Printf("%s is not in the range of %s\n", ip, providerName)
+func checkIP(ip string) {
+	for _, provider := range providers {
+		ipRanges := loadIPRanges(provider.name)
+		if ipRanges != nil && (isIPInRange(ip, ipRanges.IPv4) || isIPInRange(ip, ipRanges.IPv6)) {
+			fmt.Printf("%s is in the range of %s\n", ip, provider.name)
+			return
+		}
 	}
+	fmt.Printf("%s is not in the range of any provider\n", ip)
 }
 
 func isIPInRange(ip string, ranges []string) bool {
@@ -154,8 +177,6 @@ func parseProviderData(providerName string, data []byte) *IPRange {
 		parser = parseGitHub
 	case "google":
 		parser = parseGoogle
-	case "microsoft":
-		parser = parseMicrosoft
 	case "openai":
 		parser = parseOpenAI
 	default:
@@ -220,28 +241,6 @@ func parseGoogle(data []byte) *IPRange {
 		} else {
 			ipRange.IPv4 = append(ipRange.IPv4, ip)
 		}
-	}
-
-	return ipRange
-}
-
-func parseMicrosoft(data []byte) *IPRange {
-	var result struct {
-		Values []struct {
-			Properties struct {
-				AddressPrefixes []string `json:"addressPrefixes"`
-			} `json:"properties"`
-		} `json:"values"`
-	}
-
-	if err := json.Unmarshal(data, &result); err != nil {
-		fmt.Printf("Error unmarshalling Microsoft data: %s\n", err)
-		return nil
-	}
-
-	ipRange := &IPRange{}
-	for _, value := range result.Values {
-		ipRange.IPv4 = append(ipRange.IPv4, value.Properties.AddressPrefixes...)
 	}
 
 	return ipRange

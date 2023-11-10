@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -45,7 +46,7 @@ func main() {
 		},
 	}
 
-	rootCmd.PersistentFlags().BoolVarP(&updateAll, "update-all", "", false, "Update IP ranges for all providers")
+	rootCmd.PersistentFlags().BoolVarP(&updateAll, "update-all", "a", false, "Update IP ranges for all providers")
 
 	var checkIPCmd = &cobra.Command{
 		Use:   "check-ip [ip]",
@@ -56,6 +57,9 @@ func main() {
 			checkIP(ip)
 		},
 	}
+
+	checkIPCmd.Flags().BoolVarP(new(bool), "update", "c", false, "Check if an IP belongs to any provider's range")
+
 	rootCmd.AddCommand(checkIPCmd)
 
 	for _, provider := range providers {
@@ -76,7 +80,7 @@ func main() {
 				}
 			},
 		}
-		providerCmd.Flags().BoolVarP(&updateAll, "update-all", "", false, "Update IP ranges for all providers")
+		providerCmd.Flags().BoolVarP(&updateAll, "update-all", "a", false, "Update IP ranges for all providers")
 		rootCmd.AddCommand(providerCmd)
 	}
 
@@ -94,7 +98,7 @@ func updateIPRanges(providerName, url string) {
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		fmt.Printf("Error reading data for %s: %s\n", providerName, err)
 		return

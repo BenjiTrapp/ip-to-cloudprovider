@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -22,7 +23,7 @@ func main() {
 	downloadAndParse("57062")
 
 	// Sort & uniq
-	sortAndUnique("microsoft-all.txt", "microsoft-ipv4.txt", "microsoft-ipv6.txt")
+	sortAndUnique("microsoft-all.json", "microsoft-ipv4.json")
 }
 
 func downloadAndParse(id string) {
@@ -50,7 +51,7 @@ func downloadAndParse(id string) {
 		}
 	})
 
-	downloadAndSave(downloadURL, "microsoft-all.txt")
+	downloadAndSave(downloadURL, "microsoft-all.json")
 }
 
 func downloadAndSave(url, fileName string) {
@@ -75,7 +76,7 @@ func downloadAndSave(url, fileName string) {
 	}
 }
 
-func sortAndUnique(inputFile, ipv4File, ipv6File string) {
+func sortAndUnique(inputFile, ipv4File string) {
 	content, err := os.ReadFile(inputFile)
 	if err != nil {
 		fmt.Println("Error reading file:", err)
@@ -85,31 +86,39 @@ func sortAndUnique(inputFile, ipv4File, ipv6File string) {
 	lines := strings.Split(string(content), "\n")
 	sort.Strings(lines)
 
-	var ipv4Lines, ipv6Lines []string
+	var ipv4Lines []string
 	seen := make(map[string]bool)
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if line != "" && !seen[line] {
 			seen[line] = true
-			if strings.Contains(line, ":") {
-				ipv6Lines = append(ipv6Lines, line)
-			} else {
-				ipv4Lines = append(ipv4Lines, line)
-			}
+			ipv4Lines = append(ipv4Lines, line)
 		}
 	}
 
-	ipv4Content := strings.Join(ipv4Lines, "\n")
-	err = os.WriteFile(ipv4File, []byte(ipv4Content), 0644)
+	result := map[string][]string{
+		"ipv4": stripQuotes(ipv4Lines),
+	}
+
+	jsonResult, err := json.Marshal(result)
 	if err != nil {
-		fmt.Println("Error writing to file:", err)
+		fmt.Println("Error marshaling to JSON:", err)
 		os.Exit(1)
 	}
 
-	ipv6Content := strings.Join(ipv6Lines, "\n")
-	err = os.WriteFile(ipv6File, []byte(ipv6Content), 0644)
+	err = os.WriteFile(ipv4File, jsonResult, 0644)
 	if err != nil {
 		fmt.Println("Error writing to file:", err)
 		os.Exit(1)
 	}
+}
+
+func stripQuotes(lines []string) []string {
+	var result []string
+	for _, line := range lines {
+		trimmed := strings.Trim(line, "\"")
+		trimmed = strings.TrimSuffix(trimmed, "\",")
+		result = append(result, trimmed)
+	}
+	return result
 }

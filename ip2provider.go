@@ -114,7 +114,6 @@ func updateIPRanges(providerName, url string) {
 	}
 	defer resp.Body.Close()
 
-	// Verwende os.ReadFile statt ioutil.ReadAll
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		fmt.Printf("Error reading data for %s: %s\n", providerName, err)
@@ -179,7 +178,6 @@ func isIPInRange(ip string, ranges []string) bool {
 func saveIPRanges(providerName string, ipRange *IPRange) {
 	fileName := fmt.Sprintf("%s/ipranges.json", providerName)
 
-	// Verwende os.WriteFile statt ioutil.WriteFile
 	data, err := json.Marshal(ipRange)
 	if err != nil {
 		fmt.Printf("Error marshalling data for %s: %s\n", providerName, err)

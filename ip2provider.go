@@ -1,15 +1,16 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
 	"strings"
 
+	"github.com/BenjiTrapp/ip-to-cloudprovider/microsoft"
 	"github.com/spf13/cobra"
 )
 
@@ -40,6 +41,7 @@ func main() {
 				for _, provider := range providers {
 					updateIPRanges(provider.name, provider.url)
 				}
+				microsoft.Download()
 			} else {
 				cmd.Help()
 			}
@@ -84,6 +86,20 @@ func main() {
 		rootCmd.AddCommand(providerCmd)
 	}
 
+	var checkFileCmd = &cobra.Command{
+		Use:   "check-file",
+		Short: "Check if IPs from a file belong to any provider's range",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			filePath := args[0]
+			checkIPsFromFile(filePath)
+		},
+	}
+	
+	checkFileCmd.Flags().StringP("file", "f", "", "Path to the file containing IP addresses")
+	
+	rootCmd.AddCommand(checkFileCmd)
+
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -98,6 +114,7 @@ func updateIPRanges(providerName, url string) {
 	}
 	defer resp.Body.Close()
 
+	// Verwende os.ReadFile statt ioutil.ReadAll
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		fmt.Printf("Error reading data for %s: %s\n", providerName, err)
@@ -125,6 +142,25 @@ func checkIP(ip string) {
 	fmt.Printf("%s is not in the range of any provider\n", ip)
 }
 
+func checkIPsFromFile(filePath string) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		fmt.Printf("Error opening file: %s\n", err)
+		return
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		ip := scanner.Text()
+		checkIP(ip)
+	}
+
+	if err := scanner.Err(); err != nil {
+		fmt.Printf("Error reading file: %s\n", err)
+	}
+}
+
 func isIPInRange(ip string, ranges []string) bool {
 	parsedIP := net.ParseIP(ip)
 	for _, cidr := range ranges {
@@ -142,13 +178,15 @@ func isIPInRange(ip string, ranges []string) bool {
 
 func saveIPRanges(providerName string, ipRange *IPRange) {
 	fileName := fmt.Sprintf("%s/ipranges.json", providerName)
+
+	// Verwende os.WriteFile statt ioutil.WriteFile
 	data, err := json.Marshal(ipRange)
 	if err != nil {
 		fmt.Printf("Error marshalling data for %s: %s\n", providerName, err)
 		return
 	}
 
-	err = ioutil.WriteFile(fileName, data, 0644)
+	err = os.WriteFile(fileName, data, 0644)
 	if err != nil {
 		fmt.Printf("Error writing data to %s: %s\n", fileName, err)
 	}
@@ -156,7 +194,7 @@ func saveIPRanges(providerName string, ipRange *IPRange) {
 
 func loadIPRanges(providerName string) *IPRange {
 	fileName := fmt.Sprintf("%s/ipranges.json", providerName)
-	data, err := ioutil.ReadFile(fileName)
+	data, err := os.ReadFile(fileName)
 	if err != nil {
 		fmt.Printf("Error reading data from %s: %s\n", fileName, err)
 		return nil

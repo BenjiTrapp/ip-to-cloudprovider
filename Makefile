@@ -2,7 +2,14 @@
 
 .PHONY: all build clean update demo
 
-all: build
+all: test build update 
+
+# NO_COLOR must be != null to make the test run green. Otherwise colors will make the test fail
+test:
+	@export NO_COLOR=true; \
+	go test; \
+	go test ./microsoft; \
+	unset NO_COLOR
 
 build: rm-ip-to-cloudprovider
 	@go fmt

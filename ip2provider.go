@@ -328,7 +328,7 @@ func parseGoogle(data []byte) *IPRange {
 
 	ipRange := &IPRange{}
 	for _, line := range lines {
-		if strings.Contains(line, "include:") {
+		if strings.TrimSpace(line) == "" {
 			continue
 		}
 

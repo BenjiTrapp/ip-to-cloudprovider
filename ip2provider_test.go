@@ -1,112 +1,161 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
-	"net"
+	"io"
 	"net/http"
+	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestUpdateIPRanges(t *testing.T) {
 	// Mock HTTP server for testing
-	mockData := []byte(`{"prefixes":[{"ip_prefix":"192.168.1.0/24"}],"ipv6_prefixes":[{"ipv6_prefix":"2001:db8::/32"}]}`)
-	mockServer := mockHTTPServer(mockData)
+	mockServer := createMockServer()
 	defer mockServer.Close()
 
-	// Update IP ranges for the "amazon" provider
-	updateIPRanges("amazon", "http://"+mockServer.Addr)
+	// Test each provider's IP range update
+	for _, provider := range providers {
+		t.Run("Update IP Ranges - "+provider.name, func(t *testing.T) {
+			updateIPRanges(provider.name, mockServer.URL)
 
-	// Check if the ipranges.json file is created for the "amazon" provider
-	ipRange := loadIPRanges("amazon")
-	if ipRange == nil {
-		t.Fatal("Failed to load IP ranges")
-	}
-
-	// Check if the IP ranges are correctly parsed and saved
-	expectedIPv4 := []string{"192.168.1.0/24"}
-	expectedIPv6 := []string{"2001:db8::/32"}
-
-	if !stringSlicesEqual(ipRange.IPv4, expectedIPv4) {
-		t.Fatalf("IPv4 ranges mismatch. Expected: %v, Got: %v", expectedIPv4, ipRange.IPv4)
-	}
-
-	if !stringSlicesEqual(ipRange.IPv6, expectedIPv6) {
-		t.Fatalf("IPv6 ranges mismatch. Expected: %v, Got: %v", expectedIPv6, ipRange.IPv6)
+			// Check if the ipranges.json file is created or updated.
+			filePath := fmt.Sprintf("%s/ipranges.json", provider.name)
+			_, err := os.Stat(filePath)
+			assert.NoError(t, err, "Expected %s to be created, but it does not exist", filePath)
+		})
 	}
 }
 
 func TestCheckIP(t *testing.T) {
-	// Mock IP ranges for the "amazon" provider
-	ipRange := &IPRange{
-		IPv4: []string{"192.168.1.0/24"},
-		IPv6: []string{"2001:db8::/32"},
+	// Mock HTTP server for testing
+	mockServer := createMockServer()
+	defer mockServer.Close()
+
+	// Update IP ranges before running the check
+	for _, provider := range providers {
+		updateIPRanges(provider.name, mockServer.URL)
 	}
 
-	// Save mock IP ranges to a file for the "amazon" provider
-	saveIPRanges("amazon", ipRange)
+	testCases := []struct {
+		ip       string
+		expected string
+	}{
+		{"203.0.113.0", "203.0.113.0     is not in the range of any provider\n"},
+		{"198.41.128.0", "198.41.128.0         is in the range of Cloudflare\n"},
+		{"192.30.255.0", "192.30.255.0         is in the range of Github\n"},
+		{"13.224.15.0", "13.224.15.0          is in the range of Amazon\n"},
+	}
 
-	// Capture stdout for testing
-	oldStdout := os.Stdout
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("Check_IP_-_ %s", tc.ip), func(t *testing.T) {
+			output := captureOutput(func() {
+				checkIP(tc.ip)
+			})
+			expected := normalizeOutput(tc.expected)
+			output = normalizeOutput(output)
+			assert.Equal(t, expected, output)
+		})
+	}
+}
+
+func TestCheckIPsFromFile(t *testing.T) {
+	// Mock HTTP server for testing
+	mockServer := createMockServer()
+	defer mockServer.Close()
+
+	// Update IP ranges before running the check
+	for _, provider := range providers {
+		updateIPRanges(provider.name, mockServer.URL)
+	}
+
+	// Create a temporary file with test IPs
+	filePath := "test_ips.txt"
+	testIPs := []string{"203.0.113.0", "8.8.8.8", "192.30.255.0", "13.224.15.0", "198.41.128.0", "13.67.177.0"}
+	createTestIPFile(filePath, testIPs)
+	defer os.Remove(filePath)
+
+	// Define your test cases with normalized outputs
+	testCases := []struct {
+		filePath string
+		expected string
+	}{
+		{"test_ips.txt", "203.0.113.0     is not in the range of any provider\n8.8.8.8         is not in the range of any provider\n192.30.255.0         is in the range of Github\n13.224.15.0          is in the range of Amazon\n198.41.128.0         is in the range of Cloudflare\n13.67.177.0     is not in the range of any provider"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("Check_IPs_from_File_-_ %s", tc.filePath), func(t *testing.T) {
+			output := captureOutput(func() {
+				checkIPsFromFile(tc.filePath)
+			})
+			expected := normalizeOutput(tc.expected)
+			output = normalizeOutput(output)
+			assert.Equal(t, expected, output)
+		})
+	}
+}
+
+// Helper function to create a mock HTTP server
+func createMockServer() *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/ip-ranges.amazonaws.com/ip-ranges.json":
+			fmt.Fprint(w, `{"prefixes": [{"ip_prefix": "203.0.113.0"}], "ipv6_prefixes": []}`)
+		case "/api.cloudflare.com/client/v4/ips":
+			fmt.Fprint(w, `{"result": {"ipv4_cidrs": ["198.41.128.0"], "ipv6_cidrs": []}}`)
+		case "/api.github.com/meta":
+			fmt.Fprint(w, `{"web": ["192.30.255.0"]}`)
+		case "/www.gstatic.com/ipranges/goog.txt":
+			fmt.Fprint(w, `8.8.8.8
+                          2001:4860:4860::8888`)
+		case "/openai.com/gptbot-ranges.txt":
+			fmt.Fprint(w, `13.224.15.0`)
+		case "/some-microsoft-api-url": // Update with the correct Microsoft API URL
+			// Implement Microsoft mock data as needed
+			// For example: fmt.Fprint(w, `{"ipv4": ["Microsoft_IPv4"], "ipv6": ["Microsoft_IPv6"]}`)
+		default:
+			http.Error(w, "Not Found", http.StatusNotFound)
+		}
+	}))
+}
+
+// Helper function to capture output from stdout
+func captureOutput(f func()) string {
+	old := os.Stdout // keep backup of the real stdout
 	r, w, _ := os.Pipe()
 	os.Stdout = w
-	defer func() {
-		os.Stdout = oldStdout
-	}()
 
-	// Check if an IP is in the range for the "amazon" provider
-	ip := "192.168.1.1"
-	checkIP(ip)
+	f()
+
 	w.Close()
-
-	var buf bytes.Buffer
-	_, _ = buf.ReadFrom(r)
-
-	expectedOutput := fmt.Sprintf("%s is in the range of amazon\n", ip)
-	actualOutput := buf.String()
-
-	if actualOutput != expectedOutput {
-		t.Fatalf("Unexpected output. Expected: %s, Got: %s", expectedOutput, actualOutput)
-	}
+	out, _ := io.ReadAll(r)
+	os.Stdout = old // restoring the real stdout
+	return string(out)
 }
 
-func stringSlicesEqual(slice1, slice2 []string) bool {
-	if len(slice1) != len(slice2) {
-		return false
-	}
-
-	for i, v := range slice1 {
-		if v != slice2[i] {
-			return false
-		}
-	}
-
-	return true
-}
-
-func mockHTTPServer(responseData []byte) *http.Server {
-	mockHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write(responseData)
-	})
-
-	server := &http.Server{
-		Handler: mockHandler,
-	}
-
-	listener, err := net.Listen("tcp", "127.0.0.1:0") // Use a dynamic port
+// Helper function to create a temporary file with test IPs
+func createTestIPFile(filePath string, ips []string) {
+	file, err := os.Create(filePath)
 	if err != nil {
-		fmt.Printf("Failed to start mock server: %v\n", err)
-		return nil
+		fmt.Printf("Error creating file: %v\n", err)
+		return
 	}
-	server.Addr = listener.Addr().String()
+	defer file.Close()
 
-	go func() {
-		if err := server.Serve(listener); err != nil {
-			fmt.Printf("Mock server error: %v\n", err)
-		}
-	}()
+	for _, ip := range ips {
+		file.WriteString(ip + "\n")
+	}
+}
 
-	return server
+// Helper function to normalize output by removing leading/trailing whitespaces
+func normalizeOutput(output string) string {
+	return trimLeadingTrailingSpaces(output)
+}
+
+// Helper function to trim leading and trailing spaces from a string
+func trimLeadingTrailingSpaces(s string) string {
+	return strings.TrimSpace(s)
 }

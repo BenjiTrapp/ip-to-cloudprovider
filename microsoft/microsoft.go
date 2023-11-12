@@ -16,19 +16,19 @@ import (
 
 func Download() {
 	// Public cloud
-	downloadAndParse("56519")
+	DownloadAndParse("56519")
 	// US Gov
-	downloadAndParse("57063")
+	DownloadAndParse("57063")
 	// Germany
-	downloadAndParse("57064")
+	DownloadAndParse("57064")
 	// China
-	downloadAndParse("57062")
+	DownloadAndParse("57062")
 
-	sortAndUnique("microsoft/microsoft-all.json", "microsoft/ipranges.json")
+	SortAndUnique("microsoft/microsoft-all.json", "microsoft/ipranges.json")
 	fmt.Println("Microsoft IP Ranges updated successfully")
 }
 
-func downloadAndParse(id string) {
+func DownloadAndParse(id string) {
 	url := fmt.Sprintf("https://www.microsoft.com/en-us/download/confirmation.aspx?id=%s", id)
 
 	response, err := http.Get(url)
@@ -53,10 +53,10 @@ func downloadAndParse(id string) {
 		}
 	})
 
-	downloadAndSave(downloadURL, "microsoft/microsoft-all.json")
+	DownloadAndSave(downloadURL, "microsoft/microsoft-all.json")
 }
 
-func downloadAndSave(url, fileName string) {
+func DownloadAndSave(url, fileName string) {
 	response, err := http.Get(url)
 	if err != nil {
 		fmt.Println("Error fetching URL:", err)
@@ -78,7 +78,7 @@ func downloadAndSave(url, fileName string) {
 	}
 }
 
-func sortAndUnique(inputFile, ipRangesFile string) {
+func SortAndUnique(inputFile, ipRangesFile string) {
 	content, err := os.ReadFile(inputFile)
 	if err != nil {
 		fmt.Println("Error reading file:", err)

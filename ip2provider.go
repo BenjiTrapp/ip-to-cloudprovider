@@ -147,7 +147,7 @@ func updateIPRanges(providerName, url string) {
 	}
 
 	saveIPRanges(providerName, ipRange)
-	fmt.Printf("%s IP ranges updated successfully\n", colorizeProviderName(capitalizeFirst(providerName)))
+	fmt.Printf("%-20s IP ranges updated successfully\n", colorizeProviderName(capitalizeFirst(providerName)))
 }
 
 func capitalizeFirst(s string) string {
@@ -185,7 +185,7 @@ func checkIP(ip string) {
 	for _, provider := range providers {
 		ipRanges := loadIPRanges(provider.name)
 		if ipRanges != nil && (isIPInRange(ip, ipRanges.IPv4) || isIPInRange(ip, ipRanges.IPv6)) {
-			fmt.Printf("%-15s is in the range of %s\n", ip, colorizeProviderName(capitalizeFirst(provider.name)))
+			fmt.Printf("%-20s is in the range of %s\n", ip, colorizeProviderName(capitalizeFirst(provider.name)))
 			return
 		}
 	}

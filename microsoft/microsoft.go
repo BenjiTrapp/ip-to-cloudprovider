@@ -24,9 +24,8 @@ func Download() {
 	// China
 	downloadAndParse("57062")
 
-	// Sort & uniq
 	sortAndUnique("microsoft/microsoft-all.json", "microsoft/ipranges.json")
-	fmt.Println("microsoft IP Ranges updated successfully")
+	fmt.Println("Microsoft IP Ranges updated successfully")
 }
 
 func downloadAndParse(id string) {
@@ -79,7 +78,7 @@ func downloadAndSave(url, fileName string) {
 	}
 }
 
-func sortAndUnique(inputFile, ipv4File string) {
+func sortAndUnique(inputFile, ipRangesFile string) {
 	content, err := os.ReadFile(inputFile)
 	if err != nil {
 		fmt.Println("Error reading file:", err)
@@ -101,6 +100,7 @@ func sortAndUnique(inputFile, ipv4File string) {
 
 	result := map[string][]string{
 		"ipv4": stripQuotes(ipv4Lines),
+		"ipv6": []string{}, // Add "ipv6" key with an empty collection
 	}
 
 	jsonResult, err := json.Marshal(result)
@@ -109,7 +109,7 @@ func sortAndUnique(inputFile, ipv4File string) {
 		os.Exit(1)
 	}
 
-	err = os.WriteFile(ipv4File, jsonResult, 0644)
+	err = os.WriteFile(ipRangesFile, jsonResult, 0644)
 	if err != nil {
 		fmt.Println("Error writing to file:", err)
 		os.Exit(1)

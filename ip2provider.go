@@ -8,17 +8,29 @@ import (
 	"net"
 	"net/http"
 	"os"
+
+	"github.com/fatih/color"
+
 	"strings"
 
 	"github.com/BenjiTrapp/ip-to-cloudprovider/microsoft"
 	"github.com/spf13/cobra"
 )
 
+const banner = `
+   ____   ______     _______                _____               _    __       
+  /  _/__/_  __/__  / ___/ /  ___  __ _____/ / _ \_______ _  __(_)__/ /__ ____
+ _/ // _ \/ / / _ \/ /__/ /__/ _ \/ // / _  / ___/ __/ _ \ |/ / / _  / -_) __/
+/___/ .__/_/  \___/\___/____/\___/\_,_/\_,_/_/  /_/  \___/___/_/\_,_/\__/_/   
+   /_/                                                                        
+`
+
 type IPRange struct {
 	IPv4 []string `json:"ipv4"`
 	IPv6 []string `json:"ipv6"`
 }
 
+var debug bool
 var updateAll bool
 
 var providers = []struct {
@@ -30,16 +42,23 @@ var providers = []struct {
 	{"github", "https://api.github.com/meta", parseGitHub},
 	{"google", "https://www.gstatic.com/ipranges/goog.txt", parseGoogle},
 	{"openai", "https://openai.com/gptbot-ranges.txt", parseOpenAI},
+	{"microsoft", "NONE", nil},
 }
 
 func main() {
+	fmt.Print(banner)
+
+	fmt.Println("-------------------------------------------------------")
+
 	var rootCmd = &cobra.Command{
 		Use:   "ipranges",
 		Short: "Manage IP ranges for various providers",
 		Run: func(cmd *cobra.Command, args []string) {
 			if updateAll {
 				for _, provider := range providers {
-					updateIPRanges(provider.name, provider.url)
+					if provider.name != "microsoft" {
+						updateIPRanges(provider.name, provider.url)
+					}
 				}
 				microsoft.Download()
 			} else {
@@ -95,9 +114,9 @@ func main() {
 			checkIPsFromFile(filePath)
 		},
 	}
-	
+
 	checkFileCmd.Flags().StringP("file", "f", "", "Path to the file containing IP addresses")
-	
+
 	rootCmd.AddCommand(checkFileCmd)
 
 	if err := rootCmd.Execute(); err != nil {
@@ -127,18 +146,47 @@ func updateIPRanges(providerName, url string) {
 	}
 
 	saveIPRanges(providerName, ipRange)
-	fmt.Printf("%s IP ranges updated successfully\n", providerName)
+	fmt.Printf("%s IP ranges updated successfully\n", colorizeProviderName(capitalizeFirst(providerName)))
+}
+
+func capitalizeFirst(s string) string {
+	if len(s) == 0 {
+		return s
+	}
+
+	return strings.ToUpper(s[:1]) + s[1:]
+}
+
+func colorizeProviderName(providerName string) string {
+	var c *color.Color
+
+	switch providerName {
+	case "Microsoft":
+		c = color.New(color.FgBlue).Add(color.Bold)
+	case "Github":
+		c = color.New(color.FgBlack).Add(color.BgWhite).Add(color.Bold)
+	case "Amazon":
+		c = color.New(color.FgYellow).Add(color.Bold)
+	case "Google":
+		c = color.New(color.FgRed).Add(color.Bold)
+	case "Openai":
+		c = color.New(color.FgCyan).Add(color.Bold)
+	default:
+		c = color.New(color.FgWhite)
+	}
+
+	return c.Sprint(providerName)
 }
 
 func checkIP(ip string) {
 	for _, provider := range providers {
 		ipRanges := loadIPRanges(provider.name)
 		if ipRanges != nil && (isIPInRange(ip, ipRanges.IPv4) || isIPInRange(ip, ipRanges.IPv6)) {
-			fmt.Printf("%s is in the range of %s\n", ip, provider.name)
+			fmt.Printf("%-15s is in the range of %s\n", ip, colorizeProviderName(capitalizeFirst(provider.name)))
 			return
 		}
 	}
-	fmt.Printf("%s is not in the range of any provider\n", ip)
+	fmt.Printf("%-15s is not in the range of any provider\n", ip)
 }
 
 func checkIPsFromFile(filePath string) {
@@ -165,7 +213,9 @@ func isIPInRange(ip string, ranges []string) bool {
 	for _, cidr := range ranges {
 		_, ipNet, err := net.ParseCIDR(cidr)
 		if err != nil {
-			fmt.Printf("Error parsing CIDR %s: %s\n", cidr, err)
+			if debug {
+				fmt.Printf("Error parsing CIDR %s: %s\n", cidr, err)
+			}
 			continue
 		}
 		if ipNet.Contains(parsedIP) {
@@ -219,6 +269,8 @@ func parseProviderData(providerName string, data []byte) *IPRange {
 		parser = parseGoogle
 	case "openai":
 		parser = parseOpenAI
+	case "microsoft":
+		return nil
 	default:
 		fmt.Printf("Unknown provider: %s\n", providerName)
 		return nil

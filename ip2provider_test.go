@@ -13,7 +13,6 @@ import (
 )
 
 func TestUpdateIPRanges(t *testing.T) {
-	// Mock HTTP server for testing
 	mockServer := createMockServer()
 	defer mockServer.Close()
 
@@ -31,7 +30,6 @@ func TestUpdateIPRanges(t *testing.T) {
 }
 
 func TestCheckIP(t *testing.T) {
-	// Mock HTTP server for testing
 	mockServer := createMockServer()
 	defer mockServer.Close()
 
@@ -63,7 +61,6 @@ func TestCheckIP(t *testing.T) {
 }
 
 func TestCheckIPsFromFile(t *testing.T) {
-	// Mock HTTP server for testing
 	mockServer := createMockServer()
 	defer mockServer.Close()
 
@@ -77,8 +74,7 @@ func TestCheckIPsFromFile(t *testing.T) {
 	testIPs := []string{"203.0.113.0", "8.8.8.8", "192.30.255.0", "13.224.15.0", "198.41.128.0", "13.67.177.0"}
 	createTestIPFile(filePath, testIPs)
 	defer os.Remove(filePath)
-
-	// Define your test cases with normalized outputs
+	
 	testCases := []struct {
 		filePath string
 		expected string
@@ -98,7 +94,6 @@ func TestCheckIPsFromFile(t *testing.T) {
 	}
 }
 
-// Helper function to create a mock HTTP server
 func createMockServer() *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -113,16 +108,14 @@ func createMockServer() *httptest.Server {
                           2001:4860:4860::8888`)
 		case "/openai.com/gptbot-ranges.txt":
 			fmt.Fprint(w, `13.224.15.0`)
-		case "/some-microsoft-api-url": // Update with the correct Microsoft API URL
-			// Implement Microsoft mock data as needed
-			// For example: fmt.Fprint(w, `{"ipv4": ["Microsoft_IPv4"], "ipv6": ["Microsoft_IPv6"]}`)
+		case "/some-microsoft-api-url":
+			//fmt.Fprint(w, `{"ipv4": ["Microsoft_IPv4"], "ipv6": ["Microsoft_IPv6"]}`)
 		default:
 			http.Error(w, "Not Found", http.StatusNotFound)
 		}
 	}))
 }
 
-// Helper function to capture output from stdout
 func captureOutput(f func()) string {
 	old := os.Stdout // keep backup of the real stdout
 	r, w, _ := os.Pipe()
@@ -136,7 +129,6 @@ func captureOutput(f func()) string {
 	return string(out)
 }
 
-// Helper function to create a temporary file with test IPs
 func createTestIPFile(filePath string, ips []string) {
 	file, err := os.Create(filePath)
 	if err != nil {
@@ -150,12 +142,10 @@ func createTestIPFile(filePath string, ips []string) {
 	}
 }
 
-// Helper function to normalize output by removing leading/trailing whitespaces
 func normalizeOutput(output string) string {
 	return trimLeadingTrailingSpaces(output)
 }
 
-// Helper function to trim leading and trailing spaces from a string
 func trimLeadingTrailingSpaces(s string) string {
 	return strings.TrimSpace(s)
 }

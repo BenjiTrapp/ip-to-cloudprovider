@@ -39,6 +39,7 @@ var providers = []struct {
 	parser func(data []byte) *IPRange
 }{
 	{"amazon", "https://ip-ranges.amazonaws.com/ip-ranges.json", parseAmazon},
+	{"cloudflare", "https://api.cloudflare.com/client/v4/ips", parseCloudflare},
 	{"github", "https://api.github.com/meta", parseGitHub},
 	{"google", "https://www.gstatic.com/ipranges/goog.txt", parseGoogle},
 	{"openai", "https://openai.com/gptbot-ranges.txt", parseOpenAI},
@@ -167,6 +168,8 @@ func colorizeProviderName(providerName string) string {
 		c = color.New(color.FgBlack).Add(color.BgWhite).Add(color.Bold)
 	case "Amazon":
 		c = color.New(color.FgYellow).Add(color.Bold)
+	case "Cloudflare":
+		c = color.New(color.FgHiRed).Add(color.BgYellow).Add(color.Bold)
 	case "Google":
 		c = color.New(color.FgRed).Add(color.Bold)
 	case "Openai":
@@ -263,6 +266,8 @@ func parseProviderData(providerName string, data []byte) *IPRange {
 	switch providerName {
 	case "amazon":
 		parser = parseAmazon
+	case "cloudflare":
+		parser = parseCloudflare
 	case "github":
 		parser = parseGitHub
 	case "google":
@@ -351,4 +356,38 @@ func parseOpenAI(data []byte) *IPRange {
 	}
 
 	return ipRange
+}
+
+func parseCloudflare(data []byte) *IPRange {
+	var result map[string]interface{}
+	err := json.Unmarshal(data, &result)
+	if err != nil {
+		return nil
+	}
+
+	resultMap, ok := result["result"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+
+	ipRange := &IPRange{
+		IPv4: toStringArray(resultMap["ipv4_cidrs"]),
+		IPv6: toStringArray(resultMap["ipv6_cidrs"]),
+	}
+
+	return ipRange
+}
+
+func toStringArray(data interface{}) []string {
+	var result []string
+	if data != nil {
+		if dataSlice, ok := data.([]interface{}); ok {
+			for _, item := range dataSlice {
+				if str, ok := item.(string); ok {
+					result = append(result, str)
+				}
+			}
+		}
+	}
+	return result
 }

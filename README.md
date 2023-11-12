@@ -14,10 +14,11 @@ IP To CloudProvider is a command-line tool to manage and check IP ranges for var
 
 ### Supported Providers
 * Amazon
+* Cloudflare
 * GitHub
 * Google
-* OpenAI
 * Microsoft
+* OpenAI
 
 ## Installation
 

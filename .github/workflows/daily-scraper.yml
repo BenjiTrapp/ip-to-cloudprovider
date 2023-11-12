@@ -1,0 +1,28 @@
+name: Daily scrape of CloudProvider IP Ranges and updating the files in the repo
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * *'
+
+jobs:
+  scheduled:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Build and Update
+        run: make build && make update
+        
+      - name: Commit and push if it changed
+        run: |-
+          git config user.name "AutomatedDailyUpdater"
+          git config user.email "benji@no.reply"
+          git add -A
+          timestamp=$(date -u)
+          git commit -m "Update json: ${timestamp}" || exit 0
+          git push

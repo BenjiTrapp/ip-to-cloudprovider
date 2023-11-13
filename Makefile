@@ -23,7 +23,6 @@ rm-ip-to-cloudprovider:
 	fi
 
 update: 
-	echo "Updateing all cloudprovider ip ranges"; \
 	./ip-to-cloudprovider -a	
 
 demo: 

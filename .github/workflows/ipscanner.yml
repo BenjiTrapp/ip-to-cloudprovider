@@ -1,0 +1,28 @@
+name: ipscanner
+
+on:
+  push:
+    paths:
+      - 'ips_to_scan.txt'
+
+jobs:
+  scan_ips:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Build
+      run: make build
+
+    - name: Run ip-to-cloudprovider command
+      run: |
+        OUTPUT=$(./ip-to-cloudprovider check-file ips_to_scan.txt)
+        echo "$OUTPUT" > output.txt
+
+    - name: Create issue
+      run: |
+        gh issue create -t "New IP information" -b "IP information: $(cat output.txt)"
+      env:
+        GH_TOKEN: ${{ github.token }}

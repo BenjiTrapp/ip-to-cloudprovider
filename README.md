@@ -1,15 +1,24 @@
+[![IP Ranges Update](https://github.com/BenjiTrapp/ip-to-cloudprovider/actions/workflows/daily-scraper.yml/badge.svg)](https://github.com/BenjiTrapp/ip-to-cloudprovider/actions/workflows/daily-scraper.yml)
+[![ipscanner](https://github.com/BenjiTrapp/ip-to-cloudprovider/actions/workflows/ipscanner.yml/badge.svg)](https://github.com/BenjiTrapp/ip-to-cloudprovider/actions/workflows/ipscanner.yml)
+[![Quality Check after Commit](https://github.com/BenjiTrapp/ip-to-cloudprovider/actions/workflows/go.yml/badge.svg)](https://github.com/BenjiTrapp/ip-to-cloudprovider/actions/workflows/go.yml)
+
 <p align="center">
 <img height="200" src="static/logo.png">
 <br> IP To CloudProvider
 </p>
 
-This command-line tool helps to manage and check IP ranges for various service providers. It allows you to update IP ranges for specific providers, check if an IP belongs to any provider's range, and even verify a list of IPs from a file.
+This command-line tool helps to manage and check IP ranges for various service providers. It allows you to update IP ranges for specific providers, check if an IP belongs to any provider's range, and even verify a list of IPs from a file. Some GitHub Actions are helping to create a nice workflow around the CLI-Tool
 
 ## Features
 
 - **Update IP Ranges:** Keep the IP ranges for various service providers up-to-date with a single command.
 - **Check IP:** Determine if a specific IP belongs to the range of any supported provider.
 - **Check IPs from File:** Verify a list of IPs from a file and identify the corresponding providers.
+
+##### GitHub Action Workflows
+- **IP Scanner:** All IPs in this [file](https://github.com/BenjiTrapp/ip-to-cloudprovider/blob/main/ips_to_scan.txt) are validated and checked. After the check all info is send as a GitHub Issue against this repository. This helps for persisting the scan results and make it easier to use
+- **Quality Checks:** After each merge into main or accepted PullRequest, quality checks are against the Code. In this way it makes things easier to identify a broken behavior
+- **Daily Scraper:** Each day at midnight, this action get's triggered to update the IP ranges of the cloudproviders if something changed
 
 A picture says more then thousand words. Check out this demo (that you can redo below in the installation section)
 

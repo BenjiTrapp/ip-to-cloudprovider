@@ -1,4 +1,4 @@
-name: Scan Ips and store as GitHub Issue
+name: ipscanner
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - 'ips_to_scan.txt'
 
 jobs:
-  ipscanner:
+  your_job_name:
     runs-on: ubuntu-latest
 
     steps:
@@ -19,10 +19,8 @@ jobs:
     - name: Run ip-to-cloudprovider command
       run: |
         OUTPUT=$(./ip-to-cloudprovider check-file ips_to_scan.txt)
-        echo "OUTPUT=$OUTPUT" >> $GITHUB_ENV
+        echo "$OUTPUT" > output.txt
 
     - name: Create issue
       run: |
-        gh issue create -t "New IP information" -b "IP information: $OUTPUT"
-      env:
-        OUTPUT: ${{ steps.ipscanner.outputs.OUTPUT }}
+        gh issue create -t "New IP information" -b "IP information: $(cat output.txt)"

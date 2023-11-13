@@ -19,9 +19,10 @@ jobs:
     - name: Run ip-to-cloudprovider command
       run: |
         OUTPUT=$(ip-to-cloudprovider check-file ips_to_scan.txt)
-        echo "::set-output name=output::$OUTPUT"
+        echo "OUTPUT=$OUTPUT" >> $GITHUB_ENV
 
     - name: Create issue
-      uses: actions/gh@v0.7.0
-      with:
-        args: issue create -t "New IP information" -b "IP information: ${{ steps.ipscanner.outputs.output }}"
+      run: |
+        gh issue create -t "New IP information" -b "IP information: $OUTPUT"
+      env:
+        OUTPUT: ${{ steps.ipscanner.outputs.OUTPUT }}

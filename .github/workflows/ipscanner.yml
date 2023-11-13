@@ -6,7 +6,7 @@ on:
       - 'ips_to_scan.txt'
 
 jobs:
-  your_job_name:
+  scan_ips:
     runs-on: ubuntu-latest
 
     steps:
@@ -24,3 +24,5 @@ jobs:
     - name: Create issue
       run: |
         gh issue create -t "New IP information" -b "IP information: $(cat output.txt)"
+      env:
+        GH_TOKEN: ${{ github.token }}

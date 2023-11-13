@@ -41,6 +41,8 @@ var providers = []struct {
 	{"amazon", "https://ip-ranges.amazonaws.com/ip-ranges.json", parseAmazon},
 	{"cloudflare", "https://api.cloudflare.com/client/v4/ips", parseCloudflare},
 	{"github", "https://api.github.com/meta", parseGitHub},
+	{"googlecloud", "https://www.gstatic.com/ipranges/cloud.json", parseGoogleJson},
+	{"googlebot", "https://developers.google.com/search/apis/ipranges/googlebot.json", parseGoogleJson},
 	{"google", "https://www.gstatic.com/ipranges/goog.txt", parseGoogle},
 	{"openai", "https://openai.com/gptbot-ranges.txt", parseOpenAI},
 	{"microsoft", "NONE", nil},
@@ -172,6 +174,10 @@ func colorizeProviderName(providerName string) string {
 		c = color.New(color.FgHiRed).Add(color.BgYellow).Add(color.Bold)
 	case "Google":
 		c = color.New(color.FgRed).Add(color.Bold)
+	case "Googlecloud":
+		c = color.New(color.FgRed).Add(color.Bold)
+	case "Googlebot":
+		c = color.New(color.FgRed).Add(color.Bold)
 	case "Openai":
 		c = color.New(color.FgCyan).Add(color.Bold)
 	default:
@@ -272,6 +278,10 @@ func parseProviderData(providerName string, data []byte) *IPRange {
 		parser = parseGitHub
 	case "google":
 		parser = parseGoogle
+	case "googlecloud":
+		parser = parseGoogleJson
+	case "googlebot":
+		parser = parseGoogleJson
 	case "openai":
 		parser = parseOpenAI
 	case "microsoft":
@@ -337,6 +347,32 @@ func parseGoogle(data []byte) *IPRange {
 			ipRange.IPv6 = append(ipRange.IPv6, ip)
 		} else {
 			ipRange.IPv4 = append(ipRange.IPv4, ip)
+		}
+	}
+
+	return ipRange
+}
+
+func parseGoogleJson(data []byte) *IPRange {
+	var result struct {
+		Prefixes []struct {
+			IPv4Prefix string `json:"ipv4Prefix"`
+			IPv6Prefix string `json:"ipv6Prefix"`
+		} `json:"prefixes"`
+	}
+
+	if err := json.Unmarshal(data, &result); err != nil {
+		fmt.Printf("Error unmarshalling Google Cloud data: %s\n", err)
+		return nil
+	}
+
+	ipRange := &IPRange{}
+	for _, prefix := range result.Prefixes {
+		if prefix.IPv4Prefix != "" {
+			ipRange.IPv4 = append(ipRange.IPv4, prefix.IPv4Prefix)
+		}
+		if prefix.IPv6Prefix != "" {
+			ipRange.IPv6 = append(ipRange.IPv6, prefix.IPv6Prefix)
 		}
 	}
 

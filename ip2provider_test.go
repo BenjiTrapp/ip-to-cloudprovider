@@ -78,7 +78,6 @@ func TestCheckIPsFromFile(t *testing.T) {
 	createTestIPFile(filePath, testIPs)
 	defer os.Remove(filePath)
 
-	// Define your test cases with normalized outputs
 	testCases := []struct {
 		filePath string
 		expected string

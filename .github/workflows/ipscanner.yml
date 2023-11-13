@@ -1,4 +1,4 @@
-name: ipscanner
+name: Scan Ips and store as GitHub Issue
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - 'ips_to_scan.txt'
 
 jobs:
-  your_job_name:
+  ipscanner:
     runs-on: ubuntu-latest
 
     steps:

@@ -18,7 +18,7 @@ jobs:
 
     - name: Run ip-to-cloudprovider command
       run: |
-        OUTPUT=$(ip-to-cloudprovider check-file ips_to_scan.txt)
+        OUTPUT=$(./ip-to-cloudprovider check-file ips_to_scan.txt)
         echo "OUTPUT=$OUTPUT" >> $GITHUB_ENV
 
     - name: Create issue

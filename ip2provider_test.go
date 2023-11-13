@@ -74,7 +74,7 @@ func TestCheckIPsFromFile(t *testing.T) {
 	testIPs := []string{"203.0.113.0", "8.8.8.8", "192.30.255.0", "13.224.15.0", "198.41.128.0", "13.67.177.0"}
 	createTestIPFile(filePath, testIPs)
 	defer os.Remove(filePath)
-	
+
 	testCases := []struct {
 		filePath string
 		expected string

@@ -1,5 +1,5 @@
 {
-  "changeNumber": 279,
+  "changeNumber": 280,
   "cloud": "China",
   "values": [
     {
@@ -2572,7 +2572,7 @@
       "name": "PowerPlatformPlex",
       "id": "PowerPlatformPlex",
       "properties": {
-        "changeNumber": 3,
+        "changeNumber": 4,
         "region": "",
         "regionId": 0,
         "platform": "Azure",
@@ -2583,8 +2583,11 @@
           "52.131.194.252/30",
           "52.131.245.128/26",
           "159.27.243.192/29",
+          "159.27.253.224/29",
           "163.228.59.40/29",
           "163.228.70.128/26",
+          "163.228.99.248/29",
+          "163.228.216.88/29",
           "163.228.231.192/26"
         ],
         "networkFeatures": [
@@ -7051,14 +7054,15 @@
       "name": "PowerPlatformPlex.ChinaEast2",
       "id": "PowerPlatformPlex.ChinaEast2",
       "properties": {
-        "changeNumber": 2,
+        "changeNumber": 3,
         "region": "chinaeast2",
         "regionId": 55,
         "platform": "Azure",
         "systemService": "PowerPlatformPlex",
         "addressPrefixes": [
           "52.131.194.252/30",
-          "52.131.245.128/26"
+          "52.131.245.128/26",
+          "163.228.216.88/29"
         ],
         "networkFeatures": [
           "API",
@@ -7070,14 +7074,15 @@
       "name": "PowerPlatformPlex.ChinaEast3",
       "id": "PowerPlatformPlex.ChinaEast3",
       "properties": {
-        "changeNumber": 2,
+        "changeNumber": 3,
         "region": "chinaeast3",
         "regionId": 90,
         "platform": "Azure",
         "systemService": "PowerPlatformPlex",
         "addressPrefixes": [
           "163.228.59.40/29",
-          "163.228.70.128/26"
+          "163.228.70.128/26",
+          "163.228.99.248/29"
         ],
         "networkFeatures": [
           "API",
@@ -7108,13 +7113,14 @@
       "name": "PowerPlatformPlex.ChinaNorth3",
       "id": "PowerPlatformPlex.ChinaNorth3",
       "properties": {
-        "changeNumber": 2,
+        "changeNumber": 3,
         "region": "chinanorth3",
         "regionId": 89,
         "platform": "Azure",
         "systemService": "PowerPlatformPlex",
         "addressPrefixes": [
           "159.27.243.192/29",
+          "159.27.253.224/29",
           "163.228.231.192/26"
         ],
         "networkFeatures": [

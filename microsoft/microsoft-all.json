@@ -1,5 +1,5 @@
 {
-  "changeNumber": 284,
+  "changeNumber": 285,
   "cloud": "China",
   "values": [
     {
@@ -588,7 +588,7 @@
       "name": "AzureConnectors",
       "id": "AzureConnectors",
       "properties": {
-        "changeNumber": 9,
+        "changeNumber": 10,
         "region": "",
         "regionId": 0,
         "platform": "Azure",
@@ -597,6 +597,8 @@
           "40.72.96.40/32",
           "40.72.168.48/28",
           "40.72.168.192/27",
+          "40.73.66.252/32",
+          "40.73.67.209/32",
           "40.73.136.224/28",
           "40.73.141.192/27",
           "40.73.168.224/28",
@@ -608,6 +610,8 @@
           "52.130.112.32/27",
           "52.130.120.32/27",
           "52.130.128.32/27",
+          "52.130.147.101/32",
+          "52.130.147.117/32",
           "52.131.29.192/26",
           "52.131.65.160/27",
           "52.131.65.192/28",
@@ -620,10 +624,14 @@
           "139.217.168.112/28",
           "139.219.192.103/32",
           "159.27.10.146/32",
+          "159.27.27.13/32",
+          "159.27.27.25/32",
           "159.27.247.192/27",
           "159.27.247.224/28",
           "163.228.60.48/28",
           "163.228.60.64/27",
+          "163.228.67.13/32",
+          "163.228.67.15/32",
           "2404:7940:1:402::180/122",
           "2404:7940:101:402::980/122",
           "2404:7940:201:402::180/122",
@@ -2671,6 +2679,27 @@
       }
     },
     {
+      "name": "Scuba",
+      "id": "Scuba",
+      "properties": {
+        "changeNumber": 1,
+        "region": "",
+        "regionId": 0,
+        "platform": "Azure",
+        "systemService": "Scuba",
+        "addressPrefixes": [
+          "159.27.248.184/30",
+          "163.228.195.180/30"
+        ],
+        "networkFeatures": [
+          "NSG",
+          "API",
+          "UDR",
+          "FW"
+        ]
+      }
+    },
+    {
       "name": "ServiceFabric",
       "id": "ServiceFabric",
       "properties": {
@@ -3927,13 +3956,15 @@
       "name": "AzureConnectors.ChinaEast2",
       "id": "AzureConnectors.ChinaEast2",
       "properties": {
-        "changeNumber": 5,
+        "changeNumber": 6,
         "region": "chinaeast2",
         "regionId": 55,
         "platform": "Azure",
         "systemService": "AzureConnectors",
         "addressPrefixes": [
           "40.72.96.40/32",
+          "40.73.66.252/32",
+          "40.73.67.209/32",
           "40.73.168.224/28",
           "52.130.89.110/32",
           "52.130.89.228/32",
@@ -3952,7 +3983,7 @@
       "name": "AzureConnectors.ChinaEast3",
       "id": "AzureConnectors.ChinaEast3",
       "properties": {
-        "changeNumber": 2,
+        "changeNumber": 3,
         "region": "chinaeast3",
         "regionId": 90,
         "platform": "Azure",
@@ -3961,6 +3992,8 @@
           "52.131.157.192/26",
           "163.228.60.48/28",
           "163.228.60.64/27",
+          "163.228.67.13/32",
+          "163.228.67.15/32",
           "2406:e500:2402:400::300/122"
         ],
         "networkFeatures": [
@@ -3996,7 +4029,7 @@
       "name": "AzureConnectors.ChinaNorth2",
       "id": "AzureConnectors.ChinaNorth2",
       "properties": {
-        "changeNumber": 5,
+        "changeNumber": 6,
         "region": "chinanorth2",
         "regionId": 54,
         "platform": "Azure",
@@ -4004,6 +4037,8 @@
         "addressPrefixes": [
           "40.73.136.224/28",
           "40.73.141.192/27",
+          "52.130.147.101/32",
+          "52.130.147.117/32",
           "52.131.65.160/27",
           "52.131.65.192/28",
           "139.217.103.102/32",
@@ -4020,7 +4055,7 @@
       "name": "AzureConnectors.ChinaNorth3",
       "id": "AzureConnectors.ChinaNorth3",
       "properties": {
-        "changeNumber": 3,
+        "changeNumber": 4,
         "region": "chinanorth3",
         "regionId": 89,
         "platform": "Azure",
@@ -4028,6 +4063,8 @@
         "addressPrefixes": [
           "52.131.29.192/26",
           "159.27.10.146/32",
+          "159.27.27.13/32",
+          "159.27.27.25/32",
           "159.27.247.192/27",
           "159.27.247.224/28",
           "2406:e500:2602:400::300/122"

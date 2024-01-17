@@ -1,5 +1,5 @@
 {
-  "changeNumber": 287,
+  "changeNumber": 288,
   "cloud": "China",
   "values": [
     {
@@ -2694,6 +2694,33 @@
         "networkFeatures": [
           "NSG",
           "API",
+          "UDR",
+          "FW"
+        ]
+      }
+    },
+    {
+      "name": "SerialConsole",
+      "id": "SerialConsole",
+      "properties": {
+        "changeNumber": 1,
+        "region": "",
+        "regionId": 0,
+        "platform": "Azure",
+        "systemService": "SerialConsole",
+        "addressPrefixes": [
+          "52.130.4.23/32",
+          "52.130.19.13/32",
+          "52.130.52.14/32",
+          "52.131.64.94/31",
+          "52.131.192.182/31",
+          "139.219.248.5/32",
+          "159.27.253.236/32",
+          "163.228.199.232/32"
+        ],
+        "networkFeatures": [
+          "API",
+          "NSG",
           "UDR",
           "FW"
         ]

@@ -13,7 +13,7 @@ import (
 
 	"strings"
 
-	"github.com/BenjiTrapp/ip-to-cloudprovider/microsoft"
+	// "github.com/BenjiTrapp/ip-to-cloudprovider/microsoft"
 	"github.com/spf13/cobra"
 )
 
@@ -45,7 +45,7 @@ var providers = []struct {
 	{"googlebot", "https://developers.google.com/search/apis/ipranges/googlebot.json", parseGoogleJson},
 	{"google", "https://www.gstatic.com/ipranges/goog.txt", parseGoogle},
 	{"openai", "https://openai.com/gptbot-ranges.txt", parseOpenAI},
-	{"microsoft", "NONE", nil},
+	// {"microsoft", "NONE", nil},
 }
 
 func main() {
@@ -63,7 +63,7 @@ func main() {
 						updateIPRanges(provider.name, provider.url)
 					}
 				}
-				microsoft.Download()
+				// microsoft.Download()
 			} else {
 				cmd.Help()
 			}
@@ -164,8 +164,8 @@ func colorizeProviderName(providerName string) string {
 	var c *color.Color
 
 	switch providerName {
-	case "Microsoft":
-		c = color.New(color.FgBlue).Add(color.Bold)
+	// case "Microsoft":
+	// 	c = color.New(color.FgBlue).Add(color.Bold)
 	case "Github":
 		c = color.New(color.FgBlack).Add(color.BgWhite).Add(color.Bold)
 	case "Amazon":

@@ -1,5 +1,5 @@
 {
-  "changeNumber": 292,
+  "changeNumber": 293,
   "cloud": "China",
   "values": [
     {
@@ -1228,18 +1228,20 @@
       "name": "AzureManagedGrafana",
       "id": "AzureManagedGrafana",
       "properties": {
-        "changeNumber": 3,
+        "changeNumber": 4,
         "region": "",
         "regionId": 0,
         "platform": "Azure",
         "systemService": "AzureManagedGrafana",
         "addressPrefixes": [
+          "143.64.192.8/30",
           "159.27.248.212/31",
           "159.27.248.214/32",
           "163.228.63.16/31",
           "163.228.63.18/32",
           "163.228.195.244/31",
           "163.228.195.246/32",
+          "2404:7940:101:2::3a0/126",
           "2404:7940:301:2::2bf/128",
           "2404:7940:301:2::400/127",
           "2406:e500:2402:3::84/127",
@@ -8045,7 +8047,7 @@
       "name": "AzureCloud.chinanorth2",
       "id": "AzureCloud.chinanorth2",
       "properties": {
-        "changeNumber": 25,
+        "changeNumber": 26,
         "region": "chinanorth2",
         "regionId": 54,
         "platform": "Azure",
@@ -8081,6 +8083,7 @@
           "52.131.64.0/18",
           "139.217.56.0/21",
           "139.217.64.0/18",
+          "143.64.192.0/21",
           "159.27.144.0/20",
           "163.228.160.0/19",
           "2404:7940:100::/47",
@@ -8232,7 +8235,7 @@
       "name": "AzureCloud",
       "id": "AzureCloud",
       "properties": {
-        "changeNumber": 82,
+        "changeNumber": 83,
         "region": "",
         "regionId": 0,
         "platform": "Azure",
@@ -8431,6 +8434,7 @@
           "139.219.192.0/18",
           "143.64.0.0/17",
           "143.64.128.0/18",
+          "143.64.192.0/21",
           "159.27.0.0/17",
           "159.27.128.0/26",
           "159.27.128.64/28",

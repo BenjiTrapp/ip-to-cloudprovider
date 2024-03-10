@@ -3,7 +3,8 @@ package microsoft
 import (
 	"encoding/json"
 	"fmt"
-	"io"
+	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"regexp"
@@ -15,33 +16,30 @@ import (
 )
 
 func Download() {
-	// Public cloud
-	DownloadAndParse("56519")
-	// US Gov
-	DownloadAndParse("57063")
-	// Germany
-	DownloadAndParse("57064")
-	// China
-	DownloadAndParse("57062")
+	ids := []string{"56519", "57063", "57064", "57062"}
+	for _, id := range ids {
+		err := DownloadAndParse(id)
+		if err != nil {
+			log.Fatalf("Error in ID %s: %v", id, err)
+		}
+	}
 
 	SortAndUnique("microsoft/microsoft-all.json", "microsoft/ipranges.json")
 	fmt.Println("Microsoft IP Ranges updated successfully")
 }
 
-func DownloadAndParse(id string) {
+func DownloadAndParse(id string) error {
 	url := fmt.Sprintf("https://www.microsoft.com/en-us/download/confirmation.aspx?id=%s", id)
 
 	response, err := http.Get(url)
 	if err != nil {
-		fmt.Println("Error fetching URL:", err)
-		os.Exit(1)
+		return fmt.Errorf("ERROR fetching URL: %w", err)
 	}
 	defer response.Body.Close()
 
 	document, err := goquery.NewDocumentFromReader(response.Body)
 	if err != nil {
-		fmt.Println("Error parsing document:", err)
-		os.Exit(1)
+		log.Fatalf("Error parsing document: %v", err)
 	}
 
 	var downloadURL string
@@ -53,30 +51,34 @@ func DownloadAndParse(id string) {
 		}
 	})
 
+	if downloadURL == "" {
+		return fmt.Errorf("ERROR - No download URL found")
+	}
+
 	DownloadAndSave(downloadURL, "microsoft/microsoft-all.json")
+
+	return nil
 }
 
 func DownloadAndSave(url, fileName string) {
 	response, err := http.Get(url)
 	if err != nil {
-		fmt.Println("Error fetching URL:", err)
-		os.Exit(1)
+		log.Fatalf("Error fetching URL: %v", err)
 	}
 	defer response.Body.Close()
 
-	file, err := os.Create(fileName)
+	body, err := ioutil.ReadAll(response.Body)
 	if err != nil {
-		fmt.Println("Error creating file:", err)
-		os.Exit(1)
+		log.Fatalf("Error reading response body: %v", err)
 	}
-	defer file.Close()
 
-	_, err = io.Copy(file, response.Body)
+	err = ioutil.WriteFile(fileName, body, 0644)
 	if err != nil {
-		fmt.Println("Error writing to file:", err)
-		os.Exit(1)
+		log.Fatalf("Error writing to file: %v", err)
 	}
 }
+
+// Rest of the code remains the same
 
 func SortAndUnique(inputFile, ipRangesFile string) {
 	content, err := os.ReadFile(inputFile)

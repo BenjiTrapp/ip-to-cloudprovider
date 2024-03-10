@@ -13,7 +13,7 @@ import (
 
 	"strings"
 
-	"github.com/BenjiTrapp/ip-to-cloudprovider/microsoft"
+	//"github.com/BenjiTrapp/ip-to-cloudprovider/microsoft"
 	"github.com/spf13/cobra"
 )
 
@@ -63,7 +63,7 @@ func main() {
 						updateIPRanges(provider.name, provider.url)
 					}
 				}
-				microsoft.Download()
+				//microsoft.Download()
 			} else {
 				cmd.Help()
 			}

@@ -41,6 +41,9 @@ var providers = []struct {
 	{"amazon", "https://ip-ranges.amazonaws.com/ip-ranges.json", parseAmazon},
 	{"cloudflare", "https://api.cloudflare.com/client/v4/ips", parseCloudflare},
 	{"github", "https://api.github.com/meta", parseGitHub},
+	{"githubactions", "https://api.github.com/meta", parseGitHubActions},
+	{"githubhooks", "https://api.github.com/meta", parseGitHubHooks},
+	{"githubpages", "https://api.github.com/meta", parseGitHubPages},
 	{"googlecloud", "https://www.gstatic.com/ipranges/cloud.json", parseGoogleJson},
 	{"googlebot", "https://developers.google.com/search/apis/ipranges/googlebot.json", parseGoogleJson},
 	{"google", "https://www.gstatic.com/ipranges/goog.txt", parseGoogle},
@@ -276,6 +279,12 @@ func parseProviderData(providerName string, data []byte) *IPRange {
 		parser = parseCloudflare
 	case "github":
 		parser = parseGitHub
+	case "githubactions":
+		parser = parseGitHubActions
+	case "githubhooks":
+		parser = parseGitHubHooks
+	case "githubpages":
+		parser = parseGitHubPages
 	case "google":
 		parser = parseGoogle
 	case "googlecloud":
@@ -330,6 +339,48 @@ func parseGitHub(data []byte) *IPRange {
 	}
 
 	ipRange := &IPRange{IPv4: result.Web}
+	return ipRange
+}
+
+func parseGitHubActions(data []byte) *IPRange {
+	var result struct {
+		Actions []string `json:"actions"`
+	}
+
+	if err := json.Unmarshal(data, &result); err != nil {
+		fmt.Printf("Error unmarshalling GitHub data: %s\n", err)
+		return nil
+	}
+
+	ipRange := &IPRange{IPv4: result.Actions}
+	return ipRange
+}
+
+func parseGitHubHooks(data []byte) *IPRange {
+	var result struct {
+		Hooks []string `json:"hooks"`
+	}
+
+	if err := json.Unmarshal(data, &result); err != nil {
+		fmt.Printf("Error unmarshalling GitHub data: %s\n", err)
+		return nil
+	}
+
+	ipRange := &IPRange{IPv4: result.Hooks}
+	return ipRange
+}
+
+func parseGitHubPages(data []byte) *IPRange {
+	var result struct {
+		Pages []string `json:"pages"`
+	}
+
+	if err := json.Unmarshal(data, &result); err != nil {
+		fmt.Printf("Error unmarshalling GitHub data: %s\n", err)
+		return nil
+	}
+
+	ipRange := &IPRange{IPv4: result.Pages}
 	return ipRange
 }
 

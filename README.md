@@ -40,7 +40,7 @@ A picture says more then thousand words. Check out this demo (that you can redo 
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/BenjiTrapp/ip-to-cloudprovoder.git
+   git clone https://github.com/BenjiTrapp/ip-to-cloudprovider.git
    ```
 2. Get the required dependencies
    ```bash

@@ -1,7 +1,5 @@
 package provider
 
-import "strings"
-
 func init() {
 	Register(Provider{
 		Name:  "openai",
@@ -10,22 +8,7 @@ func init() {
 	})
 }
 
-// parseOpenAI parses OpenAI's plain-text CIDR list (one per line).
+// parseOpenAI parses OpenAI's plain-text CIDR list.
 func parseOpenAI(data []byte) (*IPRange, error) {
-	lines := strings.Split(string(data), "\n")
-
-	ipRange := &IPRange{}
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		if ClassifyCIDR(line) {
-			ipRange.IPv6 = append(ipRange.IPv6, line)
-		} else {
-			ipRange.IPv4 = append(ipRange.IPv4, line)
-		}
-	}
-
-	return ipRange, nil
+	return ParsePlainTextCIDRs(data)
 }

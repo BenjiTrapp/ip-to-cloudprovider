@@ -3,8 +3,6 @@ package provider
 import (
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
@@ -20,16 +18,16 @@ func init() {
 
 // microsoftDownloadIDs maps Azure cloud names to their Microsoft download IDs.
 var microsoftDownloadIDs = map[string]string{
-	"Public":     "56519",
-	"USGov":      "57063",
-	"China":      "57064",
-	"Germany":    "57062",
+	"Public":  "56519",
+	"USGov":   "57063",
+	"China":   "57064",
+	"Germany": "57062",
 }
 
 // serviceTagsFile represents the structure of Microsoft's ServiceTags JSON.
 type serviceTagsFile struct {
-	ChangeNumber int `json:"changeNumber"`
-	Cloud        string `json:"cloud"`
+	ChangeNumber int               `json:"changeNumber"`
+	Cloud        string            `json:"cloud"`
 	Values       []serviceTagValue `json:"values"`
 }
 
@@ -85,19 +83,13 @@ func discoverMicrosoftDownloadURL(id string) (string, error) {
 // discoverMicrosoftDownloadURLFromPage fetches the given page URL and extracts
 // the ServiceTags download link from the HTML.
 func discoverMicrosoftDownloadURLFromPage(pageURL string) (string, error) {
-	client := &http.Client{
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return nil // follow redirects
-		},
-	}
-
-	resp, err := client.Get(pageURL)
+	resp, err := httpClient.Get(pageURL)
 	if err != nil {
 		return "", fmt.Errorf("fetching confirmation page: %w", err)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != 200 {
 		return "", fmt.Errorf("confirmation page returned HTTP %d", resp.StatusCode)
 	}
 
@@ -123,21 +115,10 @@ func discoverMicrosoftDownloadURLFromPage(pageURL string) (string, error) {
 
 // fetchAndParseMicrosoftServiceTags downloads and parses a Microsoft ServiceTags JSON file.
 func fetchAndParseMicrosoftServiceTags(url string) (*IPRange, error) {
-	resp, err := http.Get(url)
+	body, err := Fetch(url)
 	if err != nil {
 		return nil, fmt.Errorf("downloading service tags: %w", err)
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("service tags download returned HTTP %d", resp.StatusCode)
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("reading service tags response: %w", err)
-	}
-
 	return fetchAndParseMicrosoftServiceTagsFromBytes(body)
 }
 

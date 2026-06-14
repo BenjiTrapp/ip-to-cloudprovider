@@ -1,21 +1,29 @@
 # vim:ft=make:
 
-.PHONY: all build clean update demo test
+.PHONY: all build clean update demo test lint
 
-all: test build update
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+LDFLAGS := -ldflags "-X main.version=$(VERSION)"
+BINARY := ip-to-cloudprovider
+
+all: test build
 
 test:
-	@NO_COLOR=true go test ./... 
+	@NO_COLOR=true go test ./...
+
+lint:
+	@go vet ./...
+	@test -z "$$(gofmt -l .)" || (echo "Files need formatting:" && gofmt -l . && exit 1)
 
 build: clean
 	@go fmt ./...
-	@go build -o ip-to-cloudprovider .
+	@go build $(LDFLAGS) -o $(BINARY) .
 
-update:
-	./ip-to-cloudprovider -a
+update: build
+	./$(BINARY) -a
 
-demo:
-	./ip-to-cloudprovider check-file demo_ips.txt
+demo: build
+	./$(BINARY) scan-file demo_ips.txt
 
 clean:
-	@rm -f ip-to-cloudprovider
+	@rm -f $(BINARY) $(BINARY).exe

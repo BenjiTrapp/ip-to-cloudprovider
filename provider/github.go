@@ -5,25 +5,27 @@ import (
 	"fmt"
 )
 
+const gitHubMetaURL = "https://api.github.com/meta"
+
 func init() {
 	Register(Provider{
 		Name:  "github",
-		URL:   "https://api.github.com/meta",
+		URL:   gitHubMetaURL,
 		Parse: parseGitHubWeb,
 	})
 	Register(Provider{
 		Name:  "githubactions",
-		URL:   "https://api.github.com/meta",
+		URL:   gitHubMetaURL,
 		Parse: parseGitHubActions,
 	})
 	Register(Provider{
 		Name:  "githubhooks",
-		URL:   "https://api.github.com/meta",
+		URL:   gitHubMetaURL,
 		Parse: parseGitHubHooks,
 	})
 	Register(Provider{
 		Name:  "githubpages",
-		URL:   "https://api.github.com/meta",
+		URL:   gitHubMetaURL,
 		Parse: parseGitHubPages,
 	})
 }
@@ -86,4 +88,41 @@ func parseGitHubPages(data []byte) (*IPRange, error) {
 		return nil, err
 	}
 	return splitIPv4v6(meta.Pages), nil
+}
+
+// UpdateGitHubAll fetches the GitHub /meta endpoint once and saves all
+// sub-providers, avoiding redundant HTTP requests.
+func UpdateGitHubAll(dataDir string) error {
+	body, err := Fetch(gitHubMetaURL)
+	if err != nil {
+		return fmt.Errorf("fetching GitHub meta: %w", err)
+	}
+
+	parsers := map[string]ParseFunc{
+		"github":        parseGitHubWeb,
+		"githubactions": parseGitHubActions,
+		"githubhooks":   parseGitHubHooks,
+		"githubpages":   parseGitHubPages,
+	}
+
+	for name, parse := range parsers {
+		ipRange, err := parse(body)
+		if err != nil {
+			return fmt.Errorf("parsing %s: %w", name, err)
+		}
+		if err := Save(name, ipRange, dataDir); err != nil {
+			return fmt.Errorf("saving %s: %w", name, err)
+		}
+	}
+
+	return nil
+}
+
+// IsGitHubProvider returns true if the provider is one of the GitHub sub-providers.
+func IsGitHubProvider(name string) bool {
+	switch name {
+	case "github", "githubactions", "githubhooks", "githubpages":
+		return true
+	}
+	return false
 }

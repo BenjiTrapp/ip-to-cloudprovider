@@ -11,18 +11,23 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.21'
 
     - name: Build
       run: make build
 
-    - name: Run ip-to-cloudprovider command
-      run: |
-        OUTPUT=$(./ip-to-cloudprovider check-file ips_to_scan.txt)
-        echo "$OUTPUT" > output.txt
+    - name: Scan IPs
+      run: ./ip-to-cloudprovider scan-file ips_to_scan.txt -q > output.txt
 
     - name: Create issue
       run: |
-        gh issue create -t "New IP information" -b "IP information: $(cat output.txt)"
+        gh issue create \
+          -t "IP Scan Results" \
+          -b "$(cat output.txt)"
       env:
         GH_TOKEN: ${{ github.token }}

@@ -3,7 +3,6 @@ package provider
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 )
 
 func init() {
@@ -26,22 +25,7 @@ func init() {
 
 // parseGoogleTxt parses Google's plain-text IP range list (one CIDR per line).
 func parseGoogleTxt(data []byte) (*IPRange, error) {
-	lines := strings.Split(string(data), "\n")
-
-	ipRange := &IPRange{}
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		if ClassifyCIDR(line) {
-			ipRange.IPv6 = append(ipRange.IPv6, line)
-		} else {
-			ipRange.IPv4 = append(ipRange.IPv4, line)
-		}
-	}
-
-	return ipRange, nil
+	return ParsePlainTextCIDRs(data)
 }
 
 // parseGoogleJSON parses Google's JSON IP range format (cloud.json, googlebot.json).

@@ -259,8 +259,8 @@ func TestParseGoogle(t *testing.T) {
 				wantV6: nil,
 			},
 			{
-				name:  "only ipv4",
-				input: `{"prefixes": [{"ipv4Prefix": "1.2.3.0/24"}]}`,
+				name:   "only ipv4",
+				input:  `{"prefixes": [{"ipv4Prefix": "1.2.3.0/24"}]}`,
 				wantV4: []string{"1.2.3.0/24"},
 				wantV6: nil,
 			},
@@ -663,7 +663,7 @@ func TestFetchAndParse(t *testing.T) {
 		p := &Provider{Name: "test", URL: server.URL, Parse: parseAmazon}
 		_, err := FetchAndParse(p)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "HTTP 500")
+		assert.Contains(t, err.Error(), "status 500")
 	})
 
 	t.Run("returns error on connection failure", func(t *testing.T) {

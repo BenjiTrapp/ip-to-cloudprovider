@@ -7,6 +7,47 @@ import (
 	"strings"
 )
 
+// privateAndReservedNetworks contains CIDRs that should never appear in
+// provider data (private, loopback, documentation, link-local, etc.).
+var privateAndReservedNetworks []*net.IPNet
+
+func init() {
+	reserved := []string{
+		"10.0.0.0/8",
+		"172.16.0.0/12",
+		"192.168.0.0/16",
+		"100.64.0.0/10",
+		"127.0.0.0/8",
+		"169.254.0.0/16",
+		"192.0.2.0/24",
+		"198.51.100.0/24",
+		"203.0.113.0/24",
+		"fc00::/7",
+		"fe80::/10",
+		"2001:db8::/32",
+		"::1/128",
+	}
+	for _, cidr := range reserved {
+		_, network, _ := net.ParseCIDR(cidr)
+		privateAndReservedNetworks = append(privateAndReservedNetworks, network)
+	}
+}
+
+// isPrivateOrReserved returns true if the given CIDR falls within a
+// private or reserved address space.
+func isPrivateOrReserved(cidr string) bool {
+	ip, network, err := net.ParseCIDR(cidr)
+	if err != nil {
+		return false
+	}
+	for _, reserved := range privateAndReservedNetworks {
+		if reserved.Contains(ip) || reserved.Contains(network.IP) {
+			return true
+		}
+	}
+	return false
+}
+
 const anthropicDocsURL = "https://docs.anthropic.com/en/api/ip-addresses"
 
 // cidrRegex matches IPv4 and IPv6 CIDR notation in text.
@@ -66,6 +107,10 @@ func parseAnthropic(data []byte) (*IPRange, error) {
 			continue
 		}
 		if seen[cidr] {
+			continue
+		}
+		// Skip private/reserved ranges (e.g. documentation examples)
+		if isPrivateOrReserved(cidr) {
 			continue
 		}
 		seen[cidr] = true

@@ -3,6 +3,7 @@ package provider
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
@@ -17,11 +18,16 @@ func init() {
 }
 
 // microsoftDownloadIDs maps Azure cloud names to their Microsoft download IDs.
-var microsoftDownloadIDs = map[string]string{
-	"Public":  "56519",
-	"USGov":   "57063",
-	"China":   "57064",
-	"Germany": "57062",
+// Note: Germany (57062) was retired Oct 2021 but may still serve final data.
+var microsoftDownloadIDs = []struct {
+	Cloud    string
+	ID       string
+	Required bool // if false, failure is non-fatal
+}{
+	{"Public", "56519", true},
+	{"USGov", "57063", true},
+	{"China", "57064", false},   // sometimes blocked from outside China
+	{"Germany", "57062", false}, // retired Oct 2021, may fail
 }
 
 // serviceTagsFile represents the structure of Microsoft's ServiceTags JSON.
@@ -40,19 +46,29 @@ type serviceTagValue struct {
 }
 
 // updateMicrosoft fetches IP ranges from all Azure clouds and merges them.
+// Required clouds (Public, USGov) must succeed; optional clouds (China, Germany)
+// are best-effort and log errors without failing the entire update.
 func updateMicrosoft(dataDir string) error {
 	ipRange := &IPRange{}
 	seen := make(map[string]bool)
+	successCount := 0
 
-	for cloud, id := range microsoftDownloadIDs {
-		downloadURL, err := discoverMicrosoftDownloadURL(id)
+	for _, cloud := range microsoftDownloadIDs {
+		downloadURL, err := discoverMicrosoftDownloadURL(cloud.ID)
 		if err != nil {
-			return fmt.Errorf("discovering download URL for Azure %s (id=%s): %w", cloud, id, err)
+			if cloud.Required {
+				return fmt.Errorf("discovering download URL for Azure %s (id=%s): %w", cloud.Cloud, cloud.ID, err)
+			}
+			// Non-fatal: skip optional clouds that fail
+			continue
 		}
 
 		ranges, err := fetchAndParseMicrosoftServiceTags(downloadURL)
 		if err != nil {
-			return fmt.Errorf("fetching Azure %s service tags: %w", cloud, err)
+			if cloud.Required {
+				return fmt.Errorf("fetching Azure %s service tags: %w", cloud.Cloud, err)
+			}
+			continue
 		}
 
 		// Merge and deduplicate
@@ -68,6 +84,11 @@ func updateMicrosoft(dataDir string) error {
 				ipRange.IPv6 = append(ipRange.IPv6, cidr)
 			}
 		}
+		successCount++
+	}
+
+	if successCount == 0 {
+		return fmt.Errorf("all Azure cloud fetches failed")
 	}
 
 	return Save("microsoft", ipRange, dataDir)
@@ -83,7 +104,13 @@ func discoverMicrosoftDownloadURL(id string) (string, error) {
 // discoverMicrosoftDownloadURLFromPage fetches the given page URL and extracts
 // the ServiceTags download link from the HTML.
 func discoverMicrosoftDownloadURLFromPage(pageURL string) (string, error) {
-	resp, err := httpClient.Get(pageURL)
+	req, err := http.NewRequest("GET", pageURL, nil)
+	if err != nil {
+		return "", fmt.Errorf("creating request: %w", err)
+	}
+	req.Header.Set("User-Agent", "ip-to-cloudprovider/1.0 (https://github.com/BenjiTrapp/ip-to-cloudprovider)")
+
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("fetching confirmation page: %w", err)
 	}
@@ -98,12 +125,15 @@ func discoverMicrosoftDownloadURLFromPage(pageURL string) (string, error) {
 		return "", fmt.Errorf("parsing confirmation page HTML: %w", err)
 	}
 
+	// Find the FIRST matching ServiceTags download link (most current)
 	var downloadURL string
-	doc.Find("a[href]").Each(func(_ int, s *goquery.Selection) {
+	doc.Find("a[href]").EachWithBreak(func(_ int, s *goquery.Selection) bool {
 		href, exists := s.Attr("href")
 		if exists && strings.Contains(href, "download.microsoft.com") && strings.Contains(href, "ServiceTags") {
 			downloadURL = href
+			return false // stop at first match
 		}
+		return true
 	})
 
 	if downloadURL == "" {

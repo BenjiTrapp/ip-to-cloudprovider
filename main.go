@@ -364,6 +364,12 @@ func colorizeProvider(name string) string {
 		c = color.New(color.FgCyan, color.Bold)
 	case "digitalocean":
 		c = color.New(color.FgBlue, color.Bold)
+	case "alibaba":
+		c = color.New(color.FgHiYellow, color.Bold)
+	case "anthropic":
+		c = color.New(color.FgHiMagenta, color.Bold)
+	case "hetzner":
+		c = color.New(color.FgRed, color.Bold)
 	default:
 		c = color.New(color.FgWhite)
 	}

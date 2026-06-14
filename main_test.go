@@ -32,6 +32,10 @@ var mockProviderData = map[string]string{
 	"googlebot":     `{"prefixes": [{"ipv4Prefix": "66.249.64.0/19"}]}`,
 	"openai":        "23.98.142.176/28\n40.84.180.224/28\n",
 	"digitalocean":  "64.225.84.0/22,IN,IN-KA,Bangalore,560100\n142.93.0.0/16,US,US-NJ,North Bergen,07047\n2400:6180:0:d0::/64,SG,SG-05,Singapore,627753\n",
+	"alibaba":       "# AS45102\n8.208.0.0/16\n47.52.0.0/16\n2400:3200::/48\n",
+	"anthropic":     "Inbound IPv4\n160.79.104.0/23\nIPv6\n2607:6bc0::/48\nOutbound IPv4\n160.79.104.0/21\n",
+	"hetzner":       "# AS24940\n5.9.0.0/16\n49.12.0.0/15\n95.216.0.0/15\n2a01:4f8::/31\n",
+	"microsoft":     "20.0.0.0/8\n2603:1000::/24\n",
 }
 
 func createMockServer() *httptest.Server {
@@ -49,13 +53,50 @@ func setupTestData(t *testing.T, dir string) {
 	t.Helper()
 	for name, data := range mockProviderData {
 		p := provider.ByName(name)
-		if p == nil || p.Parse == nil {
+		if p == nil {
 			continue
 		}
-		ipRange, err := p.Parse([]byte(data))
-		require.NoError(t, err, "failed to parse mock data for %s", name)
-		require.NoError(t, provider.Save(name, ipRange, dir), "failed to save mock data for %s", name)
+		if p.Parse != nil {
+			ipRange, err := p.Parse([]byte(data))
+			require.NoError(t, err, "failed to parse mock data for %s", name)
+			require.NoError(t, provider.Save(name, ipRange, dir), "failed to save mock data for %s", name)
+		} else {
+			// Providers with custom Update (alibaba, anthropic, microsoft):
+			// save pre-built test data directly
+			ipRange := extractTestCIDRs(data)
+			require.NoError(t, provider.Save(name, ipRange, dir), "failed to save mock data for %s", name)
+		}
 	}
+}
+
+// extractTestCIDRs is a simple helper that extracts CIDR-like patterns from
+// test data for providers that don't expose a Parse function.
+func extractTestCIDRs(data string) *provider.IPRange {
+	ipRange := &provider.IPRange{}
+	for _, line := range strings.Split(data, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		// Try to parse as CIDR
+		if strings.Contains(line, "/") {
+			// Take only the CIDR part (handle CSV, prose, etc.)
+			fields := strings.FieldsFunc(line, func(r rune) bool {
+				return r == ',' || r == ' ' || r == '\t'
+			})
+			for _, f := range fields {
+				if strings.Contains(f, "/") {
+					if strings.Contains(f, ":") {
+						ipRange.IPv6 = append(ipRange.IPv6, f)
+					} else if f[0] >= '0' && f[0] <= '9' {
+						ipRange.IPv4 = append(ipRange.IPv4, f)
+					}
+					break
+				}
+			}
+		}
+	}
+	return ipRange
 }
 
 func captureOutput(f func()) string {
@@ -115,6 +156,9 @@ func TestScanIPs_TextOutput(t *testing.T) {
 		{"multiple IPs", []string{"13.224.1.1", "198.41.200.1", "1.2.3.4"}, []string{"Amazon", "Cloudflare", "not in the range"}},
 		{"IPv6 lookup", []string{"2400:cb00::1"}, []string{"Cloudflare"}},
 		{"DigitalOcean", []string{"64.225.84.1"}, []string{"Digitalocean"}},
+		{"Alibaba Cloud", []string{"8.208.1.1"}, []string{"Alibaba"}},
+		{"Anthropic", []string{"160.79.104.1"}, []string{"Anthropic"}},
+		{"Hetzner", []string{"49.12.1.1"}, []string{"Hetzner"}},
 	}
 
 	for _, tc := range tests {

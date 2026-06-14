@@ -23,6 +23,7 @@ func TestRegistry(t *testing.T) {
 			"github", "githubactions", "githubhooks", "githubpages",
 			"google", "googlecloud", "googlebot",
 			"openai", "digitalocean", "microsoft",
+			"alibaba", "anthropic", "hetzner",
 		}
 		names := Names()
 		for _, name := range expected {
@@ -371,6 +372,135 @@ func TestParseDigitalOcean(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, tc.wantV4, result.IPv4)
 			assert.Equal(t, tc.wantV6, result.IPv6)
+		})
+	}
+}
+
+func TestParseAlibaba(t *testing.T) {
+	tests := []struct {
+		name   string
+		input  string
+		wantV4 []string
+		wantV6 []string
+	}{
+		{
+			name: "standard format with comments",
+			input: `# AS45102 (CNNIC-ALIBABA-CN-NET-AP)
+# Alibaba (China) Technology Co. Ltd.
+#
+8.208.0.0/16
+8.209.0.0/19
+47.52.0.0/16
+2400:3200::/48
+2404:2280:1000::/36`,
+			wantV4: []string{"8.208.0.0/16", "8.209.0.0/19", "47.52.0.0/16"},
+			wantV6: []string{"2400:3200::/48", "2404:2280:1000::/36"},
+		},
+		{
+			name:   "empty input",
+			input:  "",
+			wantV4: nil,
+			wantV6: nil,
+		},
+		{
+			name:   "only comments",
+			input:  "# comment\n# another comment\n",
+			wantV4: nil,
+			wantV6: nil,
+		},
+		{
+			name:   "whitespace and empty lines",
+			input:  "\n\n  8.210.0.0/15  \n\n  2400:3200:baba::/48  \n",
+			wantV4: []string{"8.210.0.0/15"},
+			wantV6: []string{"2400:3200:baba::/48"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := parseAlibaba([]byte(tc.input))
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantV4, result.IPv4)
+			assert.Equal(t, tc.wantV6, result.IPv6)
+		})
+	}
+}
+
+func TestParseAnthropic(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		wantV4  []string
+		wantV6  []string
+		wantErr bool
+	}{
+		{
+			name: "extracts CIDRs from docs-like content",
+			input: `IP addresses
+Inbound IP addresses
+IPv4
+160.79.104.0/23
+IPv6
+2607:6bc0::/48
+Outbound IP addresses
+IPv4
+160.79.104.0/21`,
+			wantV4: []string{"160.79.104.0/23", "160.79.104.0/21"},
+			wantV6: []string{"2607:6bc0::/48"},
+		},
+		{
+			name: "excludes phased-out IPs",
+			input: `Inbound IP addresses
+IPv4
+160.79.104.0/23
+Phased out IP addresses
+34.162.46.92/32
+34.162.102.82/32`,
+			wantV4: []string{"160.79.104.0/23"},
+			wantV6: nil,
+		},
+		{
+			name:    "no CIDRs found",
+			input:   "No IP addresses here, just text.",
+			wantErr: true,
+		},
+		{
+			name:    "empty input",
+			input:   "",
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := parseAnthropic([]byte(tc.input))
+			if tc.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantV4, result.IPv4)
+			assert.Equal(t, tc.wantV6, result.IPv6)
+		})
+	}
+}
+
+func TestParseCommentedCIDRs(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  []string
+	}{
+		{"skips comments", "# comment\n10.0.0.0/8\n# another\n", []string{"10.0.0.0/8"}},
+		{"skips empty lines", "\n\n10.0.0.0/8\n\n", []string{"10.0.0.0/8"}},
+		{"trims whitespace", "  10.0.0.0/8  \n", []string{"10.0.0.0/8"}},
+		{"empty input", "", nil},
+		{"only comments", "# just comments\n", nil},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, parseCommentedCIDRs(tc.input))
 		})
 	}
 }

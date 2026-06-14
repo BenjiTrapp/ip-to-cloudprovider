@@ -1,30 +1,51 @@
-[![IP Ranges Update](https://github.com/BenjiTrapp/ip-to-cloudprovider/actions/workflows/daily-scraper.yml/badge.svg)](https://github.com/BenjiTrapp/ip-to-cloudprovider/actions/workflows/daily-scraper.yml)
-[![ipscanner](https://github.com/BenjiTrapp/ip-to-cloudprovider/actions/workflows/ipscanner.yml/badge.svg)](https://github.com/BenjiTrapp/ip-to-cloudprovider/actions/workflows/ipscanner.yml)
-[![Quality Check after Commit](https://github.com/BenjiTrapp/ip-to-cloudprovider/actions/workflows/go.yml/badge.svg)](https://github.com/BenjiTrapp/ip-to-cloudprovider/actions/workflows/go.yml)
-
 <p align="center">
-<img height="200" src="static/logo.png">
-<br> IP To CloudProvider
+  <img height="200" src="static/logo.png" alt="IP to CloudProvider">
 </p>
 
-A fast command-line tool for identifying which cloud provider owns a given IP address. Supports batch lookups, JSON output, piped input, and automatic daily updates via GitHub Actions.
+<h1 align="center">IP to CloudProvider</h1>
+
+<p align="center">
+  <strong>Instantly identify which cloud provider owns any IP address.</strong><br>
+  Fast, concurrent, and always up-to-date.
+</p>
+
+<p align="center">
+  <a href="https://github.com/BenjiTrapp/ip-to-cloudprovider/actions/workflows/daily-scraper.yml"><img src="https://github.com/BenjiTrapp/ip-to-cloudprovider/actions/workflows/daily-scraper.yml/badge.svg" alt="IP Ranges Update"></a>
+  <a href="https://github.com/BenjiTrapp/ip-to-cloudprovider/actions/workflows/ipscanner.yml"><img src="https://github.com/BenjiTrapp/ip-to-cloudprovider/actions/workflows/ipscanner.yml/badge.svg" alt="IP Scanner"></a>
+  <a href="https://github.com/BenjiTrapp/ip-to-cloudprovider/actions/workflows/go.yml"><img src="https://github.com/BenjiTrapp/ip-to-cloudprovider/actions/workflows/go.yml/badge.svg" alt="Quality Check"></a>
+  <a href="https://golang.org/"><img src="https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go&logoColor=white" alt="Go Version"></a>
+  <a href="https://github.com/BenjiTrapp/ip-to-cloudprovider/blob/main/LICENSE"><img src="https://img.shields.io/github/license/BenjiTrapp/ip-to-cloudprovider?style=flat" alt="License"></a>
+</p>
+
+---
+
+## Why?
+
+During incident response, threat hunting, or infrastructure audits you often need to quickly determine whether an IP belongs to AWS, Azure, GCP, or another cloud. This tool does that lookup **locally and instantly** against pre-downloaded CIDR registries -- no external API calls at scan time.
+
+---
 
 ## Features
 
-- **Multi-provider lookup** - Check IPs against 12 provider registries simultaneously
-- **Batch scanning** - Process thousands of IPs with concurrent matching
-- **Multiple input methods** - CLI args, file input (`-f`), or piped stdin
-- **JSON output** - Machine-readable output with `--json` for scripting and pipelines
-- **Summary statistics** - Aggregate results with `--stats`
-- **Per-provider updates** - Update individual providers or all at once
-- **Automatic daily updates** - GitHub Actions workflow keeps IP ranges fresh
-- **Pre-loaded matcher** - Parses CIDRs once, then matches in-memory for speed
+| | |
+|---|---|
+| **Multi-provider** | Match IPs against 15 provider registries simultaneously |
+| **Blazing fast** | CIDRs parsed once, matched in-memory with concurrent workers |
+| **Flexible input** | CLI args, file (`-f`), or piped stdin |
+| **JSON output** | Machine-readable with `-j` for scripting and pipelines |
+| **Summary stats** | Aggregate breakdown with `--stats` |
+| **Selective updates** | Refresh a single provider or all at once |
+| **Auto-refresh** | GitHub Actions updates IP ranges daily at midnight UTC |
+
+---
 
 ## Supported Providers
 
 | Provider | Source |
-|----------|--------|
+|:---------|:-------|
+| Alibaba Cloud | ASN data (AS45102) via ipverse |
 | Amazon AWS | `ip-ranges.amazonaws.com` |
+| Anthropic (Claude) | `docs.anthropic.com/en/api/ip-addresses` |
 | Cloudflare | Cloudflare API v4 |
 | DigitalOcean | GeoIP CSV feed |
 | GitHub (web) | GitHub `/meta` API |
@@ -34,8 +55,35 @@ A fast command-line tool for identifying which cloud provider owns a given IP ad
 | Google | `gstatic.com/ipranges/goog.txt` |
 | Google Cloud | `gstatic.com/ipranges/cloud.json` |
 | Googlebot | Google Search APIs |
+| Hetzner | ASN data (AS24940) via ipverse |
 | Microsoft Azure | ServiceTags JSON (4 clouds, deduplicated) |
 | OpenAI | `openai.com/gptbot-ranges.txt` |
+
+---
+
+## Quick Start
+
+### Install
+
+```bash
+go install github.com/BenjiTrapp/ip-to-cloudprovider@latest
+```
+
+### Download IP ranges
+
+```bash
+ip-to-cloudprovider -a
+```
+
+### Scan
+
+```bash
+ip-to-cloudprovider scan 8.8.8.8
+```
+
+That's it. Three commands to go from zero to identifying cloud IPs.
+
+---
 
 ## Installation
 
@@ -43,11 +91,7 @@ A fast command-line tool for identifying which cloud provider owns a given IP ad
 
 ```bash
 go install github.com/BenjiTrapp/ip-to-cloudprovider@latest
-```
-
-Then download the IP range data:
-```bash
-ip-to-cloudprovider -a
+ip-to-cloudprovider -a   # download provider data
 ```
 
 ### From source
@@ -58,15 +102,17 @@ cd ip-to-cloudprovider
 make build
 ```
 
+---
+
 ## Usage
 
 ### Update IP ranges
 
 ```bash
-# Update all providers
+# All providers at once
 ip-to-cloudprovider -a
 
-# Update a single provider
+# Individual provider
 ip-to-cloudprovider amazon --update
 ip-to-cloudprovider microsoft --update
 ```
@@ -83,7 +129,7 @@ ip-to-cloudprovider scan 13.224.1.1 198.41.200.1 64.225.84.5
 # Short alias
 ip-to-cloudprovider s 8.8.8.8
 
-# From a file
+# From a file (one IP per line)
 ip-to-cloudprovider scan -f ips.txt
 
 # Piped from stdin
@@ -96,12 +142,6 @@ ip-to-cloudprovider scan 8.8.8.8 -q -j
 ip-to-cloudprovider scan -f ips.txt --stats
 ```
 
-### Scan file (legacy command)
-
-```bash
-ip-to-cloudprovider scan-file demo_ips.txt
-```
-
 ### List providers
 
 ```bash
@@ -112,62 +152,88 @@ ip-to-cloudprovider list
 ip-to-cloudprovider list -j
 ```
 
-### Global flags
+### Legacy command
+
+```bash
+ip-to-cloudprovider scan-file demo_ips.txt
+```
+
+### Global Flags
 
 | Flag | Short | Description |
-|------|-------|-------------|
+|:-----|:------|:------------|
 | `--quiet` | `-q` | Suppress banner output |
 | `--json` | `-j` | Output results as JSON |
 | `--data-dir` | | Directory for IP range data files (default: `.`) |
 | `--version` | | Print version information |
 
+---
+
 ## Demo
 
-![](/static/demo.gif)
+<p align="center">
+  <img src="static/demo.gif" alt="Demo" width="700">
+</p>
 
-## GitHub Action Workflows
-
-- **Daily Scraper** - Updates IP ranges at midnight UTC every day
-- **IP Scanner** - Triggered when `ips_to_scan.txt` is modified; posts results as a GitHub Issue
-- **Quality Checks** - Runs `go vet`, `gofmt`, tests, and race detector on every push/PR
+---
 
 ## Architecture
 
 ```
-provider/
-  provider.go      - Core types, registry, Fetch, Save/Load, CIDR validation
-  matcher.go       - Pre-loaded batch IP matcher with concurrency threshold
-  amazon.go        - Amazon AWS parser
-  cloudflare.go    - Cloudflare API parser
-  digitalocean.go  - DigitalOcean CSV parser
-  github.go        - GitHub /meta (4 sub-providers) + dedup fetch
-  google.go        - Google/GoogleCloud/Googlebot parsers
-  microsoft.go     - Azure ServiceTags HTML scraping + JSON parsing
-  openai.go        - OpenAI plain-text CIDR parser
-main.go            - CLI entry point (cobra)
+.
+├── main.go                 CLI entry point (Cobra commands & output formatting)
+├── provider/
+│   ├── provider.go         Core types, registry, Fetch, Save/Load, CIDR validation
+│   ├── matcher.go          Pre-loaded batch IP matcher with concurrency
+│   ├── alibaba.go          Alibaba Cloud (AS45102 BGP data)
+│   ├── amazon.go           Amazon AWS
+│   ├── anthropic.go        Anthropic/Claude docs scraper
+│   ├── cloudflare.go       Cloudflare API
+│   ├── digitalocean.go     DigitalOcean CSV parser
+│   ├── github.go           GitHub /meta (4 sub-providers, dedup fetch)
+│   ├── google.go           Google / Google Cloud / Googlebot
+│   ├── hetzner.go          Hetzner Online (AS24940 BGP data)
+│   ├── microsoft.go        Azure ServiceTags (HTML scrape + JSON parse)
+│   └── openai.go           OpenAI plain-text CIDR
+├── .github/workflows/
+│   ├── daily-scraper.yml   Nightly IP range refresh
+│   ├── ipscanner.yml       Auto-scan on ips_to_scan.txt change
+│   └── go.yml              CI: vet, fmt, test, race detector
+└── Makefile                Build, test, lint, demo targets
 ```
+
+---
+
+## GitHub Actions Workflows
+
+| Workflow | Trigger | Purpose |
+|:---------|:--------|:--------|
+| **Daily Scraper** | Cron (midnight UTC) | Keeps IP ranges fresh automatically |
+| **IP Scanner** | Push to `ips_to_scan.txt` | Scans IPs and posts results as a GitHub Issue |
+| **Quality Check** | Push / PR | Runs `go vet`, `gofmt`, tests, and race detector |
+
+---
 
 ## Development
 
 ```bash
-# Run tests
-make test
-
-# Run tests with race detector
-go test -race ./...
-
-# Lint
-make lint
-
-# Build with version tag
-make build
+make test       # Run tests
+make lint       # Vet + format check
+make build      # Build binary with version tag
+make update     # Build + update all provider data
+make demo       # Build + scan demo_ips.txt
 ```
 
-## Contribution
+```bash
+# Run tests with race detector
+go test -race ./...
+```
 
-Contributions are welcome! If you'd like to add support for a new provider or improve the existing code, please submit a pull request.
+---
 
-To add a new provider, create a file in `provider/` with an `init()` function that calls `Register()`:
+## Adding a New Provider
+
+Create a file in `provider/` with an `init()` function that calls `Register()`:
 
 ```go
 package provider
@@ -186,4 +252,16 @@ func parseMyProvider(data []byte) (*IPRange, error) {
 }
 ```
 
-**Note:** This tool is provided as-is, without any warranties. Use it responsibly and respect the terms of service of the supported providers.
+That's all it takes -- the registry auto-discovers providers at startup.
+
+---
+
+## Contributing
+
+Contributions are welcome! Whether it's a new provider, a bug fix, or a performance improvement -- open a pull request and let's make it happen.
+
+---
+
+<p align="center">
+  <sub>Built with Go. Kept fresh by GitHub Actions. Use responsibly.</sub>
+</p>

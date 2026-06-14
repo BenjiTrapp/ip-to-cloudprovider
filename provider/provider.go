@@ -75,9 +75,18 @@ func Names() []string {
 	return names
 }
 
+// userAgent is sent with all outgoing HTTP requests.
+const userAgent = "ip-to-cloudprovider/1.0 (https://github.com/BenjiTrapp/ip-to-cloudprovider)"
+
 // Fetch downloads data from a URL with timeout and size limits.
 func Fetch(url string) ([]byte, error) {
-	resp, err := httpClient.Get(url)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("creating request for %s: %w", url, err)
+	}
+	req.Header.Set("User-Agent", userAgent)
+
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("HTTP GET %s: %w", url, err)
 	}

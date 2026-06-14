@@ -6,20 +6,26 @@ on:
     - cron: '0 0 * * *'
 
 jobs:
-  scheduled:
+  update-ip-ranges:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v2
-        with:
-          fetch-depth: 0
+        uses: actions/checkout@v4
 
-      - name: Build and Update
-        run: make build && make update
-        
-      - name: Commit and push if it changed
-        run: |-
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Build
+        run: make build
+
+      - name: Update all provider IP ranges
+        run: make update
+
+      - name: Commit and push if changed
+        run: |
           git config user.name "AutomatedDailyUpdater"
           git config user.email "benji@no.reply"
           git add -A

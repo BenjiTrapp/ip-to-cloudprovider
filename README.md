@@ -29,6 +29,7 @@ A picture says more then thousand words. Check out this demo (that you can redo 
 ### Supported Providers
 * Amazon
 * Cloudflare
+* DigitalOcean
 * GitHub
 * Google
 * GoogleCloud
@@ -37,6 +38,23 @@ A picture says more then thousand words. Check out this demo (that you can redo 
 * OpenAI
 
 ## Installation
+
+### Using `go install`
+
+```bash
+go install github.com/BenjiTrapp/ip-to-cloudprovider@latest
+```
+
+This will download, compile, and install the binary to your `$GOPATH/bin` (or `$HOME/go/bin` by default). Make sure this directory is in your `PATH`.
+
+After installing, run the update command to download the latest IP range data:
+```bash
+ip-to-cloudprovider -a
+```
+
+> **Note:** The IP range data files are stored in the current working directory. Always run the tool from the same directory where you performed the initial update.
+
+### From source
 
 1. Clone the repository:
    ```bash

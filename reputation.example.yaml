@@ -1,0 +1,40 @@
+# Example reputation config for ip-to-cloudprovider.
+#
+# Copy this to the default location and edit as needed:
+#   Linux/macOS: ~/.config/ip-to-cloudprovider/reputation.yaml
+#   Or point at it explicitly: scan 1.2.3.4 -r --reputation-config ./reputation.yaml
+#   Or via env:                IP2CP_REPUTATION_CONFIG=./reputation.yaml
+#
+# With NO config file present, the keyless DNSBL sources below are used
+# automatically, so `scan -r` works out of the box without any setup.
+
+# DNS blocklists. These need no API key or registration. Set `enabled: false`
+# on any entry to turn it off, or replace the whole list with your own.
+dnsbls:
+  - name: spamhaus-zen
+    zone: zen.spamhaus.org
+    score: 80
+  - name: spamcop
+    zone: bl.spamcop.net
+    score: 60
+  - name: barracuda
+    zone: b.barracudacentral.org
+    score: 60
+  - name: uceprotect-l1
+    zone: dnsbl-1.uceprotect.net
+    score: 50
+    # enabled: false
+
+# AbuseIPDB (https://www.abuseipdb.com). Requires a free API key.
+# The key may also come from the ABUSEIPDB_API_KEY environment variable.
+abuseipdb:
+  enabled: false
+  api_key: ""       # or leave empty and set ABUSEIPDB_API_KEY
+  max_age_days: 90
+
+# Shodan (https://www.shodan.io). Used by the `shodan` command to look up open
+# ports, services, and CVEs for IPs and domains. Requires an API key.
+# The key may also come from the SHODAN_API_KEY environment variable.
+shodan:
+  enabled: false
+  api_key: ""       # or leave empty and set SHODAN_API_KEY

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"net"
 	"net/http"
 	"os"
@@ -13,6 +14,38 @@ import (
 	"strings"
 	"time"
 )
+
+// EmbeddedData holds a build-time snapshot of provider IP ranges, laid out as
+// "<provider>/ipranges.json". It is populated by the main package via go:embed
+// and used as a read-only fallback when no data exists on disk. A nil value
+// disables the fallback (e.g. in tests that assert the no-data path).
+var EmbeddedData fs.FS
+
+// embeddedRange reads a provider's IP ranges from the embedded snapshot.
+// Returns nil if no embedded data is available for the provider.
+func embeddedRange(providerName string) (*IPRange, error) {
+	if EmbeddedData == nil {
+		return nil, fmt.Errorf("no embedded data")
+	}
+	data, err := fs.ReadFile(EmbeddedData, providerName+"/ipranges.json")
+	if err != nil {
+		return nil, err
+	}
+	var ipRange IPRange
+	if err := json.Unmarshal(data, &ipRange); err != nil {
+		return nil, fmt.Errorf("unmarshalling embedded %s: %w", providerName, err)
+	}
+	return &ipRange, nil
+}
+
+// hasEmbedded reports whether the embedded snapshot contains data for a provider.
+func hasEmbedded(providerName string) bool {
+	if EmbeddedData == nil {
+		return false
+	}
+	_, err := fs.Stat(EmbeddedData, providerName+"/ipranges.json")
+	return err == nil
+}
 
 const (
 	// httpTimeout is the maximum time allowed for a single HTTP request.
@@ -164,11 +197,17 @@ func Save(providerName string, ipRange *IPRange, dataDir string) error {
 	return nil
 }
 
-// Load reads an IPRange from disk.
+// Load reads an IPRange from disk, falling back to the embedded snapshot when
+// no data file exists in the data directory.
 func Load(providerName, dataDir string) (*IPRange, error) {
 	path := filepath.Join(dataDir, providerName, "ipranges.json")
 	data, err := os.ReadFile(path)
 	if err != nil {
+		if os.IsNotExist(err) {
+			if ipRange, embErr := embeddedRange(providerName); embErr == nil {
+				return ipRange, nil
+			}
+		}
 		return nil, fmt.Errorf("reading %s: %w", path, err)
 	}
 
@@ -180,11 +219,14 @@ func Load(providerName, dataDir string) (*IPRange, error) {
 	return &ipRange, nil
 }
 
-// HasData returns true if the given provider has data files in the data directory.
+// HasData returns true if the given provider has data available, either as a
+// file in the data directory or in the embedded snapshot.
 func HasData(providerName, dataDir string) bool {
 	path := filepath.Join(dataDir, providerName, "ipranges.json")
-	_, err := os.Stat(path)
-	return err == nil
+	if _, err := os.Stat(path); err == nil {
+		return true
+	}
+	return hasEmbedded(providerName)
 }
 
 // HasAnyData returns true if at least one provider has data loaded.

@@ -212,6 +212,12 @@ func TestScanIPs_Stats(t *testing.T) {
 func TestScanIPs_NoDataWarning(t *testing.T) {
 	dir := t.TempDir() // empty dir, no provider data
 	defer withDataDir(t, dir)()
+
+	// Disable the embedded snapshot fallback so this exercises the no-data path.
+	origEmbedded := provider.EmbeddedData
+	provider.EmbeddedData = nil
+	defer func() { provider.EmbeddedData = origEmbedded }()
+
 	jsonOutput = false
 
 	// Capture stderr

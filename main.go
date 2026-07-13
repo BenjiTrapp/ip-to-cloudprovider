@@ -2,8 +2,10 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"sort"
 	"strings"
@@ -12,6 +14,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/BenjiTrapp/ip-to-cloudprovider/provider"
+	"github.com/BenjiTrapp/ip-to-cloudprovider/reputation"
+	"github.com/BenjiTrapp/ip-to-cloudprovider/shodan"
 )
 
 // version is set at build time via ldflags.
@@ -27,10 +31,13 @@ const banner = `
 
 // Global flags
 var (
-	quiet      bool
-	jsonOutput bool
-	showStats  bool
-	dataDir    string
+	quiet            bool
+	jsonOutput       bool
+	showStats        bool
+	dataDir          string
+	checkRep         bool
+	repConfigPath    string
+	shodanConfigPath string
 )
 
 func main() {
@@ -49,7 +56,7 @@ func main() {
 	// Global persistent flags
 	rootCmd.PersistentFlags().BoolVarP(&quiet, "quiet", "q", false, "Suppress banner output")
 	rootCmd.PersistentFlags().BoolVarP(&jsonOutput, "json", "j", false, "Output results as JSON")
-	rootCmd.PersistentFlags().StringVar(&dataDir, "data-dir", ".", "Directory for IP range data files")
+	rootCmd.PersistentFlags().StringVar(&dataDir, "data-dir", provider.DefaultDataDir(), "Directory for IP range data files")
 
 	// --update-all / -a flag on root
 	var updateAll bool
@@ -75,6 +82,7 @@ Examples:
   ip-to-cloudprovider scan 8.8.8.8
   ip-to-cloudprovider s 8.8.8.8 1.1.1.1 13.224.0.1
   ip-to-cloudprovider scan --stats -f ips.txt
+  ip-to-cloudprovider scan 1.2.3.4 --reputation
   echo "8.8.8.8" | ip-to-cloudprovider scan -q -j
   cat ips.txt | ip-to-cloudprovider scan -q -j`,
 		Run: func(cmd *cobra.Command, args []string) {
@@ -89,6 +97,8 @@ Examples:
 	}
 	scanCmd.Flags().StringP("file", "f", "", "Read IPs from file (one per line)")
 	scanCmd.Flags().BoolVar(&showStats, "stats", false, "Show summary statistics after scan")
+	scanCmd.Flags().BoolVarP(&checkRep, "reputation", "r", false, "Also check each IP against threat-intel sources (DNSBLs, AbuseIPDB)")
+	scanCmd.Flags().StringVar(&repConfigPath, "reputation-config", "", "Path to reputation config file (default: per-user config dir)")
 
 	// scan-file command (kept for backward compat)
 	scanFileCmd := &cobra.Command{
@@ -112,6 +122,37 @@ Examples:
 			listProviders()
 		},
 	}
+
+	// shodan command
+	shodanCmd := &cobra.Command{
+		Use:     "shodan [ip-or-domain...]",
+		Aliases: []string{"sh"},
+		Short:   "Look up IPs or domains on Shodan (open ports, services, CVEs)",
+		Long: `Look up one or more IPs or domains on Shodan.
+
+Domains are resolved to an IP via Shodan before the host lookup. Requires a
+Shodan API key, set in the config file (shodan.api_key) or the SHODAN_API_KEY
+environment variable.
+
+Accepts targets as arguments, from stdin (pipe), or from a file (-f).
+
+Examples:
+  ip-to-cloudprovider shodan 8.8.8.8
+  ip-to-cloudprovider shodan example.com 1.1.1.1
+  ip-to-cloudprovider shodan -f targets.txt -q -j
+  cat targets.txt | ip-to-cloudprovider shodan -q`,
+		Run: func(cmd *cobra.Command, args []string) {
+			file, _ := cmd.Flags().GetString("file")
+			targets := collectIPs(args, file)
+			if len(targets) == 0 {
+				fmt.Fprintln(os.Stderr, "Error: no targets provided. Pass IPs/domains as arguments, use -f <file>, or pipe via stdin.")
+				os.Exit(1)
+			}
+			shodanScan(targets)
+		},
+	}
+	shodanCmd.Flags().StringP("file", "f", "", "Read targets from file (one per line)")
+	shodanCmd.Flags().StringVar(&shodanConfigPath, "shodan-config", "", "Path to config file with the Shodan API key (default: per-user config dir)")
 
 	// Per-provider subcommands with --update flag
 	for _, p := range provider.Registry {
@@ -139,6 +180,7 @@ Examples:
 	rootCmd.AddCommand(scanCmd)
 	rootCmd.AddCommand(scanFileCmd)
 	rootCmd.AddCommand(listCmd)
+	rootCmd.AddCommand(shodanCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
@@ -188,13 +230,71 @@ func scanIPs(ips []string) {
 	matcher := provider.NewMatcher(dataDir)
 	results := matcher.MatchAll(ips)
 
+	var reports []reputation.Report
+	if checkRep {
+		reports = runReputation(ips)
+	}
+
 	if jsonOutput {
-		outputJSON(results)
+		if checkRep {
+			outputJSONWithReputation(results, reports)
+		} else {
+			outputJSON(results)
+		}
 	} else {
-		outputText(results)
+		if checkRep {
+			outputTextWithReputation(results, reports)
+		} else {
+			outputText(results)
+		}
 		if showStats && len(results) > 1 {
 			outputStats(results)
 		}
+	}
+}
+
+// runReputation checks all IPs against the configured threat-intel sources.
+// Returns nil (and warns) if no sources are active or the config fails to load.
+func runReputation(ips []string) []reputation.Report {
+	cfg, err := reputation.LoadConfig(repConfigPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error loading reputation config: %v\n", err)
+		return nil
+	}
+
+	checker := reputation.NewChecker(cfg)
+	if !checker.Enabled() {
+		fmt.Fprintln(os.Stderr, "Warning: reputation check requested but no sources are active. Check your reputation config.")
+		return nil
+	}
+
+	return checker.CheckAll(context.Background(), ips)
+}
+
+// shodanScan looks up each target on Shodan and prints the results.
+func shodanScan(targets []string) {
+	cfg, err := shodan.LoadConfig(shodanConfigPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error loading Shodan config: %v\n", err)
+		os.Exit(1)
+	}
+	if cfg.APIKey() == "" {
+		fmt.Fprintln(os.Stderr, "Error: no Shodan API key found. Set 'shodan.api_key' in the config file or the SHODAN_API_KEY environment variable.")
+		os.Exit(1)
+	}
+
+	client := shodan.NewClient(cfg.APIKey())
+	ctx := context.Background()
+
+	results := make([]shodan.Result, len(targets))
+	for i, t := range targets {
+		results[i] = client.Scan(ctx, t)
+	}
+
+	if jsonOutput {
+		outputShodanJSON(results)
+	} else {
+		outputShodanText(results)
 	}
 }
 
@@ -311,14 +411,217 @@ func outputJSON(results []provider.MatchResult) {
 	}
 }
 
-func outputText(results []provider.MatchResult) {
-	for _, r := range results {
-		if r.Match {
-			fmt.Printf("%-20s is in the range of %s\n", r.IP, colorizeProvider(r.Provider))
-		} else {
-			fmt.Printf("%-20s is not in the range of any provider\n", r.IP)
+// combinedResult merges a provider match with its reputation report for JSON output.
+type combinedResult struct {
+	provider.MatchResult
+	Reputation *reputation.Report `json:"reputation,omitempty"`
+}
+
+// outputJSONWithReputation emits the provider match and reputation report per IP.
+func outputJSONWithReputation(results []provider.MatchResult, reports []reputation.Report) {
+	combined := make([]combinedResult, len(results))
+	for i, r := range results {
+		combined[i] = combinedResult{MatchResult: r}
+		if i < len(reports) {
+			rep := reports[i]
+			combined[i].Reputation = &rep
 		}
 	}
+
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(combined); err != nil {
+		fmt.Fprintf(os.Stderr, "Error writing JSON: %v\n", err)
+	}
+}
+
+func outputShodanJSON(results []shodan.Result) {
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(results); err != nil {
+		fmt.Fprintf(os.Stderr, "Error writing JSON: %v\n", err)
+	}
+}
+
+// outputShodanText prints a human-readable summary of each Shodan lookup.
+func outputShodanText(results []shodan.Result) {
+	for _, r := range results {
+		header := colorizeTarget(r.Target)
+		if r.IsDomain && r.ResolvedIP != "" {
+			header = fmt.Sprintf("%s (%s)", colorizeTarget(r.Target), colorizeIP(r.ResolvedIP))
+		}
+		fmt.Printf("%s %s %s\n", headerColor.Sprint("==="), header, headerColor.Sprint("==="))
+
+		if r.Err != "" {
+			fmt.Printf("  %s\n\n", color.RedString("error: %s", r.Err))
+			continue
+		}
+		if r.Host == nil {
+			fmt.Printf("  %s\n\n", color.YellowString("no data"))
+			continue
+		}
+
+		h := r.Host
+		if loc := formatLocation(h); loc != "" {
+			fmt.Printf("  %s %s\n", label("Location:"), loc)
+		}
+		if h.Org != "" {
+			fmt.Printf("  %s %s\n", label("Org:"), h.Org)
+		}
+		if h.ISP != "" {
+			fmt.Printf("  %s %s\n", label("ISP:"), h.ISP)
+		}
+		if h.OS != "" {
+			fmt.Printf("  %s %s\n", label("OS:"), h.OS)
+		}
+		if len(h.Hostnames) > 0 {
+			hosts := make([]string, len(h.Hostnames))
+			for i, hn := range h.Hostnames {
+				hosts[i] = colorizeURL(hn)
+			}
+			fmt.Printf("  %s %s\n", label("Hostnames:"), strings.Join(hosts, ", "))
+		}
+		if len(h.Ports) > 0 {
+			fmt.Printf("  %s %s\n", label("Ports:"), colorizePorts(h.Ports, h.Services))
+		}
+		if len(h.Services) > 0 {
+			fmt.Printf("  %s\n", label("Services:"))
+			for _, s := range h.Services {
+				fmt.Printf("    %s %s\n", color.New(color.Faint).Sprint("-"), colorizeService(s))
+			}
+		}
+		if len(h.Tags) > 0 {
+			tags := make([]string, len(h.Tags))
+			for i, t := range h.Tags {
+				tags[i] = tagColor.Sprint(t)
+			}
+			fmt.Printf("  %s %s\n", label("Tags:"), strings.Join(tags, " "))
+		}
+		if len(h.Vulns) > 0 {
+			vulns := make([]string, len(h.Vulns))
+			for i, v := range h.Vulns {
+				vulns[i] = vulnColor.Sprintf(" %s ", v)
+			}
+			fmt.Printf("  %s %s\n", label("Vulns:"), strings.Join(vulns, " "))
+		}
+		if h.LastUpdate != "" {
+			fmt.Printf("  %s %s\n", label("Updated:"), color.New(color.Faint).Sprint(h.LastUpdate))
+		}
+		fmt.Println()
+	}
+}
+
+// formatLocation renders city/country from a Shodan host record.
+func formatLocation(h *shodan.HostInfo) string {
+	switch {
+	case h.City != "" && h.Country != "":
+		return h.City + ", " + h.Country
+	case h.Country != "":
+		return h.Country
+	default:
+		return ""
+	}
+}
+
+// colorizePorts renders a sorted port list, coloring each port by the transport
+// of its matching service (tcp vs udp) so protocols are visually distinct.
+func colorizePorts(ports []int, services []shodan.Service) string {
+	transportByPort := make(map[int]string, len(services))
+	for _, s := range services {
+		if _, ok := transportByPort[s.Port]; !ok {
+			transportByPort[s.Port] = strings.ToLower(s.Transport)
+		}
+	}
+
+	parts := make([]string, len(ports))
+	for i, p := range ports {
+		parts[i] = transportColor(transportByPort[p]).Sprintf("%d", p)
+	}
+	return strings.Join(parts, " ")
+}
+
+// colorizeService renders a single service as "port/transport product version"
+// with the port+transport colored by protocol and the product highlighted.
+func colorizeService(s shodan.Service) string {
+	tc := transportColor(strings.ToLower(s.Transport))
+
+	out := tc.Sprintf("%d", s.Port)
+	if s.Transport != "" {
+		out += tc.Sprint("/" + s.Transport)
+	}
+	if s.Product != "" {
+		out += " " + color.New(color.FgHiWhite, color.Bold).Sprint(s.Product)
+	}
+	if s.Version != "" {
+		out += " " + color.New(color.Faint).Sprint(s.Version)
+	}
+	return out
+}
+
+func outputText(results []provider.MatchResult) {
+	for _, r := range results {
+		ip := padColored(colorizeIP(r.IP), r.IP, 20)
+		if r.Match {
+			fmt.Printf("%s is in the range of %s\n", ip, colorizeProvider(r.Provider))
+		} else {
+			fmt.Printf("%s %s\n", ip, color.New(color.Faint).Sprint("is not in the range of any provider"))
+		}
+	}
+}
+
+// outputTextWithReputation prints the provider match plus a reputation verdict
+// for each IP. reports is aligned by index with results.
+func outputTextWithReputation(results []provider.MatchResult, reports []reputation.Report) {
+	for i, r := range results {
+		ip := padColored(colorizeIP(r.IP), r.IP, 20)
+		if r.Match {
+			fmt.Printf("%s is in the range of %s", ip, colorizeProvider(r.Provider))
+		} else {
+			fmt.Printf("%s %s", ip, color.New(color.Faint).Sprint("is not in the range of any provider"))
+		}
+
+		if i < len(reports) {
+			rep := reports[i]
+			fmt.Printf("  [%s]", colorizeVerdict(rep.Verdict, rep.Score))
+			if hits := listedSources(rep); hits != "" {
+				fmt.Printf(" %s", hits)
+			}
+		}
+		fmt.Println()
+	}
+}
+
+// listedSources returns a comma-separated list of sources that flagged the IP.
+func listedSources(rep reputation.Report) string {
+	var names []string
+	for _, s := range rep.Sources {
+		if s.Listed && s.Err == "" {
+			names = append(names, s.Source)
+		}
+	}
+	if len(names) == 0 {
+		return ""
+	}
+	return "flagged by: " + strings.Join(names, ", ")
+}
+
+// colorizeVerdict renders a reputation verdict with an appropriate color.
+func colorizeVerdict(v reputation.Verdict, score int) string {
+	var c *color.Color
+	switch v {
+	case reputation.VerdictMalicious:
+		c = color.New(color.FgHiWhite, color.BgRed, color.Bold)
+	case reputation.VerdictSuspicious:
+		c = color.New(color.FgBlack, color.BgYellow, color.Bold)
+	case reputation.VerdictClean:
+		c = color.New(color.FgGreen, color.Bold)
+	default:
+		c = color.New(color.FgWhite)
+	}
+	if v == reputation.VerdictMalicious || v == reputation.VerdictSuspicious {
+		return c.Sprintf("%s %d%%", strings.ToUpper(string(v)), score)
+	}
+	return c.Sprint(strings.ToUpper(string(v)))
 }
 
 func outputStats(results []provider.MatchResult) {
@@ -345,6 +648,64 @@ func outputStats(results []provider.MatchResult) {
 // ---------------------------------------------------------------------------
 // Formatting
 // ---------------------------------------------------------------------------
+
+// Shared colors for the various output elements, defined once so the palette
+// stays consistent across commands.
+var (
+	headerColor = color.New(color.FgHiCyan, color.Bold)               // === section headers ===
+	labelColor  = color.New(color.FgCyan, color.Bold)                 // "Ports:", "Org:", ...
+	urlColor    = color.New(color.FgHiBlue, color.Underline)          // hostnames / URLs
+	ipColor     = color.New(color.FgHiGreen)                          // IP addresses
+	tagColor    = color.New(color.FgBlack, color.BgHiCyan)            // Shodan tags
+	vulnColor   = color.New(color.FgHiWhite, color.BgRed, color.Bold) // CVEs
+)
+
+// label renders a right-padded, colored field label for aligned output.
+func label(name string) string {
+	return labelColor.Sprintf("%-11s", name)
+}
+
+// padColored left-aligns a colored string to a target column width. It pads
+// based on the plain (uncolored) text length, since ANSI escape codes would
+// otherwise be counted by fmt's width specifiers and misalign the columns.
+func padColored(colored, plain string, width int) string {
+	if pad := width - len(plain); pad > 0 {
+		return colored + strings.Repeat(" ", pad)
+	}
+	return colored
+}
+
+// transportColor picks a color for a network transport: tcp and udp get
+// distinct hues, anything else stays neutral.
+func transportColor(transport string) *color.Color {
+	switch transport {
+	case "tcp":
+		return color.New(color.FgHiGreen, color.Bold)
+	case "udp":
+		return color.New(color.FgHiMagenta, color.Bold)
+	default:
+		return color.New(color.FgHiWhite)
+	}
+}
+
+// colorizeURL highlights a hostname or URL to make it stand out and clickable.
+func colorizeURL(s string) string {
+	return urlColor.Sprint(s)
+}
+
+// colorizeIP highlights an IP address.
+func colorizeIP(s string) string {
+	return ipColor.Sprint(s)
+}
+
+// colorizeTarget highlights a scan target: IPs are colored as IPs, everything
+// else (domains) as a URL.
+func colorizeTarget(s string) string {
+	if net.ParseIP(s) != nil {
+		return colorizeIP(s)
+	}
+	return colorizeURL(s)
+}
 
 func colorizeProvider(name string) string {
 	var c *color.Color

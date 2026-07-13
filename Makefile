@@ -20,10 +20,10 @@ build: clean
 	@go build $(LDFLAGS) -o $(BINARY) .
 
 update: build
-	./$(BINARY) -a
+	./$(BINARY) -a --data-dir .
 
 demo: build
-	./$(BINARY) scan-file demo_ips.txt
+	./$(BINARY) scan-file demo_ips.txt --data-dir .
 
 clean:
 	@rm -f $(BINARY) $(BINARY).exe

@@ -287,47 +287,42 @@ func TestParseGoogle(t *testing.T) {
 	})
 }
 
-func TestParseOpenAI(t *testing.T) {
-	tests := []struct {
-		name   string
-		input  string
-		wantV4 []string
-		wantV6 []string
-	}{
-		{
-			name:   "IPv4 only",
-			input:  "23.98.142.176/28\n40.84.180.224/28\n",
-			wantV4: []string{"23.98.142.176/28", "40.84.180.224/28"},
-			wantV6: nil,
-		},
-		{
-			name:   "mixed IPv4 and IPv6",
-			input:  "23.98.142.176/28\n2607:f8b0:4000::/36\n",
-			wantV4: []string{"23.98.142.176/28"},
-			wantV6: []string{"2607:f8b0:4000::/36"},
-		},
-		{
-			name:   "empty input",
-			input:  "",
-			wantV4: nil,
-			wantV6: nil,
-		},
-		{
-			name:   "trailing newlines and whitespace",
-			input:  "\n  10.0.0.0/8  \n\n",
-			wantV4: []string{"10.0.0.0/8"},
-			wantV6: nil,
-		},
-	}
+func TestFetchAndMergeOpenAI(t *testing.T) {
+	// Two bot files with an overlapping IPv4 prefix to exercise deduplication.
+	gptbot := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"prefixes":[
+			{"ipv4Prefix":"23.98.142.176/28"},
+			{"ipv6Prefix":"2607:f8b0:4000::/36"}
+		]}`)
+	}))
+	defer gptbot.Close()
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			result, err := parseOpenAI([]byte(tc.input))
-			require.NoError(t, err)
-			assert.Equal(t, tc.wantV4, result.IPv4)
-			assert.Equal(t, tc.wantV6, result.IPv6)
-		})
-	}
+	searchbot := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"prefixes":[
+			{"ipv4Prefix":"23.98.142.176/28"},
+			{"ipv4Prefix":"40.84.180.224/28"}
+		]}`)
+	}))
+	defer searchbot.Close()
+
+	t.Run("merges and deduplicates across files", func(t *testing.T) {
+		result, err := fetchAndMergeOpenAI([]string{gptbot.URL, searchbot.URL})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"23.98.142.176/28", "40.84.180.224/28"}, result.IPv4)
+		assert.Equal(t, []string{"2607:f8b0:4000::/36"}, result.IPv6)
+	})
+
+	t.Run("skips unreachable files but succeeds on the rest", func(t *testing.T) {
+		result, err := fetchAndMergeOpenAI([]string{"http://127.0.0.1:1", gptbot.URL})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"23.98.142.176/28"}, result.IPv4)
+		assert.Equal(t, []string{"2607:f8b0:4000::/36"}, result.IPv6)
+	})
+
+	t.Run("errors when all files fail", func(t *testing.T) {
+		_, err := fetchAndMergeOpenAI([]string{"http://127.0.0.1:1"})
+		assert.Error(t, err)
+	})
 }
 
 func TestParseDigitalOcean(t *testing.T) {
@@ -854,7 +849,7 @@ func TestUpdateProvider(t *testing.T) {
 		defer server.Close()
 
 		dir := t.TempDir()
-		p := &Provider{Name: "testprov", URL: server.URL, Parse: parseOpenAI}
+		p := &Provider{Name: "testprov", URL: server.URL, Parse: ParsePlainTextCIDRs}
 
 		err := UpdateProvider(p, dir)
 		require.NoError(t, err)

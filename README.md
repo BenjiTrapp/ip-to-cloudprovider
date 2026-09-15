@@ -273,6 +273,24 @@ ip-to-cloudprovider list
 ip-to-cloudprovider list -j
 ```
 
+### Healthcheck providers
+
+Live-checks every provider's upstream source (fetch + parse, without saving) so
+a retired URL, an HTTP 403/404, or a changed payload format is caught early. It
+exits non-zero if any provider is unhealthy, so it can gate CI.
+
+```bash
+# Human-readable report
+ip-to-cloudprovider healthcheck
+
+# JSON output (for scripting / alerting)
+ip-to-cloudprovider hc -q -j
+```
+
+The same check runs on a schedule via the `Provider healthcheck` workflow, which
+opens a GitHub issue when a provider breaks. Locally, the Go-level live smoke
+test covers the same ground: `go test -tags live ./provider/ -run TestLive -v`.
+
 ### Legacy command
 
 ```bash
@@ -346,7 +364,8 @@ ip-to-cloudprovider scan-file demo_ips.txt
 
 | Workflow | Trigger | Purpose |
 |:---------|:--------|:--------|
-| **Daily Scraper** | Cron (midnight UTC) | Keeps IP ranges fresh automatically |
+| **Daily Scraper** | Cron (midnight UTC) | Keeps IP ranges fresh automatically; commits successful updates and fails the job if any provider breaks |
+| **Provider healthcheck** | Cron (06:00 UTC) | Live-checks every provider source; opens a GitHub Issue when one changes/breaks |
 | **IP Scanner** | Push to `ips_to_scan.txt` | Scans IPs and posts results as a GitHub Issue |
 | **Quality Check** | Push / PR | Runs `go vet`, `gofmt`, tests, and race detector |
 
@@ -365,6 +384,9 @@ make demo       # Build + scan demo_ips.txt
 ```bash
 # Run tests with race detector
 go test -race ./...
+
+# Live smoke test against real provider endpoints (network required)
+go test -tags live ./provider/ -run TestLive -v
 ```
 
 ---

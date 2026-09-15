@@ -21,7 +21,12 @@ jobs:
       - name: Build
         run: make build
 
+      # Allowed to fail: a single broken provider must not stop the others from
+      # being refreshed and committed. The outcome is inspected below so the job
+      # still turns red (and notifies) when something breaks.
       - name: Update all provider IP ranges
+        id: update
+        continue-on-error: true
         run: make update
 
       - name: Commit and push if changed
@@ -32,3 +37,9 @@ jobs:
           timestamp=$(date -u)
           git commit -m "Update CloudProvider IpRanges: ${timestamp}" || exit 0
           git push
+
+      - name: Fail if any provider failed to update
+        if: steps.update.outcome == 'failure'
+        run: |
+          echo "::error::One or more providers failed to update. See the 'Update all provider IP ranges' step logs."
+          exit 1

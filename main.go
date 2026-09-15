@@ -63,7 +63,9 @@ func main() {
 	rootCmd.Flags().BoolVarP(&updateAll, "update-all", "a", false, "Update IP ranges for all providers")
 	rootCmd.Run = func(cmd *cobra.Command, args []string) {
 		if updateAll {
-			updateAllProviders()
+			if failed := updateAllProviders(); failed > 0 {
+				os.Exit(1)
+			}
 		} else {
 			cmd.Help()
 		}
@@ -120,6 +122,26 @@ Examples:
 		Short:   "List all supported providers and their data status",
 		Run: func(cmd *cobra.Command, args []string) {
 			listProviders()
+		},
+	}
+
+	// healthcheck command
+	healthcheckCmd := &cobra.Command{
+		Use:     "healthcheck",
+		Aliases: []string{"hc"},
+		Short:   "Live-check every provider's upstream source (detects endpoint/format changes)",
+		Long: `Fetch and parse each provider's upstream source without saving, reporting
+which providers are reachable and returning usable IP ranges.
+
+A retired URL, an HTTP 403/404, or a changed payload format all surface here as
+a failure. Exits non-zero if any provider is unhealthy, so it can gate CI and
+surface upstream breakage early.
+
+Examples:
+  ip-to-cloudprovider healthcheck
+  ip-to-cloudprovider hc -q -j`,
+		Run: func(cmd *cobra.Command, args []string) {
+			os.Exit(runHealthcheck())
 		},
 	}
 
@@ -180,6 +202,7 @@ Examples:
 	rootCmd.AddCommand(scanCmd)
 	rootCmd.AddCommand(scanFileCmd)
 	rootCmd.AddCommand(listCmd)
+	rootCmd.AddCommand(healthcheckCmd)
 	rootCmd.AddCommand(shodanCmd)
 
 	if err := rootCmd.Execute(); err != nil {
@@ -191,9 +214,14 @@ Examples:
 // Commands
 // ---------------------------------------------------------------------------
 
-func updateAllProviders() {
+// updateAllProviders updates every provider and returns the number that failed.
+// Failures are logged but do not abort the run, so a single broken provider
+// never prevents the others from being refreshed and saved. The non-zero return
+// lets the caller exit with a failing status so CI surfaces the breakage.
+func updateAllProviders() int {
 	// Deduplicate GitHub meta fetches
 	githubUpdated := false
+	failed := 0
 
 	for _, p := range provider.Registry {
 		p := p
@@ -203,6 +231,7 @@ func updateAllProviders() {
 			if !githubUpdated {
 				if err := provider.UpdateGitHubAll(dataDir); err != nil {
 					fmt.Fprintf(os.Stderr, "Error updating GitHub providers: %v\n", err)
+					failed++
 				} else {
 					fmt.Printf("%-20s IP ranges updated successfully\n", colorizeProvider("github"))
 					fmt.Printf("%-20s IP ranges updated successfully\n", colorizeProvider("githubactions"))
@@ -216,10 +245,53 @@ func updateAllProviders() {
 
 		if err := provider.UpdateProvider(&p, dataDir); err != nil {
 			fmt.Fprintf(os.Stderr, "Error updating %s: %v\n", p.Name, err)
+			failed++
 			continue
 		}
 		fmt.Printf("%-20s IP ranges updated successfully\n", colorizeProvider(p.Name))
 	}
+
+	if failed > 0 {
+		fmt.Fprintf(os.Stderr, "\n%d provider(s) failed to update\n", failed)
+	}
+	return failed
+}
+
+// runHealthcheck live-checks every provider and prints a report. It returns the
+// process exit code: 0 if all providers are healthy, 1 if any failed.
+func runHealthcheck() int {
+	results := provider.CheckAll()
+
+	failed := 0
+	for _, r := range results {
+		if !r.OK {
+			failed++
+		}
+	}
+
+	if jsonOutput {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(results); err != nil {
+			fmt.Fprintf(os.Stderr, "Error writing JSON: %v\n", err)
+		}
+	} else {
+		for _, r := range results {
+			if r.OK {
+				fmt.Printf("%-20s %s (IPv4: %d, IPv6: %d)\n",
+					colorizeProvider(r.Provider), color.GreenString("OK"), r.IPv4, r.IPv6)
+			} else {
+				fmt.Fprintf(os.Stderr, "%-20s %s %s\n",
+					colorizeProvider(r.Provider), color.RedString("FAIL"), r.Err)
+			}
+		}
+		fmt.Printf("\n%d/%d providers healthy\n", len(results)-failed, len(results))
+	}
+
+	if failed > 0 {
+		return 1
+	}
+	return 0
 }
 
 func scanIPs(ips []string) {

@@ -18,7 +18,9 @@ func init() {
 }
 
 // microsoftDownloadIDs maps Azure cloud names to their Microsoft download IDs.
-// Note: Germany (57062) was retired Oct 2021 but may still serve final data.
+// IDs are per the Azure "service tags overview" docs (Discover service tags by
+// using downloadable JSON files).
+// Note: Germany (57064) was retired Oct 2021 but still serves its final data.
 var microsoftDownloadIDs = []struct {
 	Cloud    string
 	ID       string
@@ -26,8 +28,8 @@ var microsoftDownloadIDs = []struct {
 }{
 	{"Public", "56519", true},
 	{"USGov", "57063", true},
-	{"China", "57064", false},   // sometimes blocked from outside China
-	{"Germany", "57062", false}, // retired Oct 2021, may fail
+	{"China", "57062", false},   // sometimes blocked from outside China
+	{"Germany", "57064", false}, // retired Oct 2021, serves stale data
 }
 
 // serviceTagsFile represents the structure of Microsoft's ServiceTags JSON.
@@ -54,20 +56,12 @@ func updateMicrosoft(dataDir string) error {
 	successCount := 0
 
 	for _, cloud := range microsoftDownloadIDs {
-		downloadURL, err := discoverMicrosoftDownloadURL(cloud.ID)
+		ranges, err := fetchMicrosoftCloud(cloud.ID)
 		if err != nil {
 			if cloud.Required {
-				return fmt.Errorf("discovering download URL for Azure %s (id=%s): %w", cloud.Cloud, cloud.ID, err)
+				return fmt.Errorf("fetching Azure %s (id=%s): %w", cloud.Cloud, cloud.ID, err)
 			}
 			// Non-fatal: skip optional clouds that fail
-			continue
-		}
-
-		ranges, err := fetchAndParseMicrosoftServiceTags(downloadURL)
-		if err != nil {
-			if cloud.Required {
-				return fmt.Errorf("fetching Azure %s service tags: %w", cloud.Cloud, err)
-			}
 			continue
 		}
 
@@ -94,11 +88,30 @@ func updateMicrosoft(dataDir string) error {
 	return Save("microsoft", ipRange, dataDir)
 }
 
-// discoverMicrosoftDownloadURL scrapes the Microsoft download confirmation page
+// fetchMicrosoftCloud discovers the download link for one Azure cloud (by its
+// Microsoft download ID) and downloads + parses its ServiceTags JSON. It is a
+// package variable so tests can stub the network layer and exercise the
+// merge/dedup and required-vs-optional logic in updateMicrosoft directly.
+var fetchMicrosoftCloud = func(id string) (*IPRange, error) {
+	downloadURL, err := discoverMicrosoftDownloadURL(id)
+	if err != nil {
+		return nil, err
+	}
+	return fetchAndParseMicrosoftServiceTags(downloadURL)
+}
+
+// microsoftPageURL builds the download details page URL for a given download ID.
+// It is a package variable so tests can redirect discovery to a mock server.
+// The legacy confirmation.aspx endpoint was retired (it now redirects to a 404
+// page), so details.aspx is used instead.
+var microsoftPageURL = func(id string) string {
+	return fmt.Sprintf("https://www.microsoft.com/download/details.aspx?id=%s", id)
+}
+
+// discoverMicrosoftDownloadURL scrapes the Microsoft download details page
 // to find the actual JSON download link.
 func discoverMicrosoftDownloadURL(id string) (string, error) {
-	url := fmt.Sprintf("https://www.microsoft.com/en-us/download/confirmation.aspx?id=%s", id)
-	return discoverMicrosoftDownloadURLFromPage(url)
+	return discoverMicrosoftDownloadURLFromPage(microsoftPageURL(id))
 }
 
 // discoverMicrosoftDownloadURLFromPage fetches the given page URL and extracts

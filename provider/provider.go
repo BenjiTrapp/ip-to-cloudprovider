@@ -299,6 +299,34 @@ func ParsePlainTextCIDRs(data []byte) (*IPRange, error) {
 	return ipRange, nil
 }
 
+// ParsePrefixJSON parses the "prefixes" JSON format used by Google
+// (cloud.json, googlebot.json) and OpenAI (gptbot.json, searchbot.json,
+// chatgpt-user.json), where each entry carries an ipv4Prefix or ipv6Prefix.
+func ParsePrefixJSON(data []byte) (*IPRange, error) {
+	var result struct {
+		Prefixes []struct {
+			IPv4Prefix string `json:"ipv4Prefix"`
+			IPv6Prefix string `json:"ipv6Prefix"`
+		} `json:"prefixes"`
+	}
+
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, fmt.Errorf("parsing prefix JSON data: %w", err)
+	}
+
+	ipRange := &IPRange{}
+	for _, prefix := range result.Prefixes {
+		if prefix.IPv4Prefix != "" {
+			ipRange.IPv4 = append(ipRange.IPv4, prefix.IPv4Prefix)
+		}
+		if prefix.IPv6Prefix != "" {
+			ipRange.IPv6 = append(ipRange.IPv6, prefix.IPv6Prefix)
+		}
+	}
+
+	return ipRange, nil
+}
+
 // validateCIDRs filters a list of CIDRs, keeping only valid ones.
 func validateCIDRs(cidrs []string) []string {
 	if cidrs == nil {
